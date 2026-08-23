@@ -5,6 +5,10 @@ import '../game/config/asset_paths.dart';
 class HowToPlayScreen extends StatelessWidget {
   const HowToPlayScreen({super.key});
 
+  static const Color _pink = Color(0xFFFF6BA8);
+  static const Color _pinkDeep = Color(0xFFE84F8F);
+  static const Color _cream = Color(0xFFFFF6F0);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -15,8 +19,9 @@ class HowToPlayScreen extends StatelessWidget {
             'assets/images/${AssetPaths.menuBackground}',
             fit: BoxFit.cover,
             alignment: Alignment.center,
+            filterQuality: FilterQuality.high,
           ),
-          const ColoredBox(color: Color(0x33FFF2FA)),
+          const ColoredBox(color: Color(0x28FFFFFF)),
           SafeArea(
             minimum: const EdgeInsets.all(20),
             child: Column(
@@ -31,14 +36,14 @@ class HowToPlayScreen extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.fromLTRB(24, 28, 24, 30),
                     decoration: BoxDecoration(
-                      color: const Color(0xF2FFF8FC),
-                      borderRadius: BorderRadius.circular(32),
-                      border: Border.all(color: Colors.white, width: 3),
+                      color: const Color(0xF5FFF8FC),
+                      borderRadius: BorderRadius.circular(36),
+                      border: Border.all(color: _cream, width: 5),
                       boxShadow: const <BoxShadow>[
                         BoxShadow(
-                          color: Color(0x339A5180),
-                          blurRadius: 24,
-                          offset: Offset(0, 12),
+                          color: Color(0x44C2185B),
+                          blurRadius: 22,
+                          offset: Offset(0, 10),
                         ),
                       ],
                     ),
@@ -48,13 +53,14 @@ class HowToPlayScreen extends StatelessWidget {
                         Text(
                           'HOW TO PLAY',
                           style: TextStyle(
-                            fontFamily: 'PlayfairDisplay',
-                            color: Color(0xFF9B4C91),
-                            fontSize: 30,
-                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Baloo2',
+                            color: _pinkDeep,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
                           ),
                         ),
-                        SizedBox(height: 24),
+                        SizedBox(height: 22),
                         _Instruction(
                           icon: Icons.directions_walk_rounded,
                           text: 'Welcome each customer to your nail salon.',
@@ -96,20 +102,32 @@ class _Instruction extends StatelessWidget {
           Container(
             width: 48,
             height: 48,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFD3E7),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[Color(0xFFFF9BC4), Color(0xFFFF6BA8)],
+              ),
               shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFFFF6F0), width: 3),
+              boxShadow: const <BoxShadow>[
+                BoxShadow(
+                  color: Color(0x33C2185B),
+                  blurRadius: 8,
+                  offset: Offset(0, 3),
+                ),
+              ],
             ),
-            child: Icon(icon, color: const Color(0xFFD65591)),
+            child: Icon(icon, color: Colors.white, size: 24),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
               text,
               style: const TextStyle(
-                fontFamily: 'DMSans',
-                color: Color(0xFF765368),
-                fontSize: 16,
+                fontFamily: 'Baloo2',
+                color: Color(0xFF8A4A68),
+                fontSize: 17,
                 fontWeight: FontWeight.w600,
                 height: 1.3,
               ),
@@ -129,16 +147,19 @@ class _BackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFFAF72E7),
-      shape: const CircleBorder(),
+      color: HowToPlayScreen._pink,
+      shape: const CircleBorder(
+        side: BorderSide(color: HowToPlayScreen._cream, width: 3),
+      ),
       elevation: 5,
+      shadowColor: const Color(0x55C2185B),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onPressed,
         child: const SizedBox(
-          width: 54,
-          height: 54,
-          child: Icon(Icons.arrow_back_rounded, color: Colors.white, size: 30),
+          width: 52,
+          height: 52,
+          child: Icon(Icons.arrow_back_rounded, color: Colors.white, size: 28),
         ),
       ),
     );

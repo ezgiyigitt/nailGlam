@@ -1,14 +1,17 @@
 import 'package:flame/components.dart';
 import 'package:flame/camera.dart';
 import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart';
 
 import '../ui/arrival_complete_overlay.dart';
 import '../ui/arrival_controls_overlay.dart';
 import '../ui/customer_thought_bubble_overlay.dart';
 import '../ui/home_overlay.dart';
+import '../ui/nail_care_overlay.dart';
 import 'camera_director.dart';
 import 'components/salon_scene.dart';
 import 'config/game_config.dart';
+import 'nail_care_controller.dart';
 
 /// Stages of the Part 1 loop.
 enum GamePhase {
@@ -47,6 +50,7 @@ class NailGlamGame extends FlameGame {
 
   late final SalonScene scene;
   late final CameraDirector director;
+  late final NailCareController nailCare;
 
   GamePhase phase = GamePhase.home;
 
@@ -89,6 +93,13 @@ class NailGlamGame extends FlameGame {
     scene.customer.onStartedSitting = _onCustomerStartedSitting;
     scene.customer.onSeated = _onCustomerSeated;
     scene.customer.onHandsOnTable = _onHandsOnTable;
+
+    nailCare = NailCareController(
+      workspace: scene.workspace,
+      onRequestPinkyZoom: _beginPinkyPage,
+      onRequestFinish: _onNailCareFinished,
+    );
+    await add(nailCare);
   }
 
   /// Runs the whole arrival beat from the top. Safe to call from any phase, so
@@ -100,9 +111,11 @@ class NailGlamGame extends FlameGame {
     overlays.remove(HomeOverlay.id);
     overlays.remove(ArrivalCompleteOverlay.id);
     overlays.remove(CustomerThoughtBubbleOverlay.id);
+    overlays.remove(NailCareOverlay.id);
     overlays.add(ArrivalControlsOverlay.id);
 
     scene.reset();
+    nailCare.reset();
     director.snapTo(Vector2(GameConfig.cameraHomeX, GameConfig.sceneCenterY));
 
     phase = GamePhase.arriving;
@@ -130,7 +143,9 @@ class NailGlamGame extends FlameGame {
     overlays.remove(ArrivalControlsOverlay.id);
     overlays.remove(ArrivalCompleteOverlay.id);
     overlays.remove(CustomerThoughtBubbleOverlay.id);
+    overlays.remove(NailCareOverlay.id);
     scene.reset();
+    nailCare.reset();
     director.snapTo(Vector2(GameConfig.cameraHomeX, GameConfig.sceneCenterY));
     overlays.add(HomeOverlay.id);
   }
@@ -150,8 +165,8 @@ class NailGlamGame extends FlameGame {
     overlays.add(CustomerThoughtBubbleOverlay.id);
   }
 
-  /// Called by the final thought bubble. Hands rise onto the table before the
-  /// workspace camera push-in.
+  /// Called by the final thought bubble. Hands are already on the table in the
+  /// seated idle art; the close-up plate takes over next.
   void completeCustomerDialogue() {
     overlays.remove(CustomerThoughtBubbleOverlay.id);
     _cancelWorkspaceCue();
@@ -161,59 +176,62 @@ class NailGlamGame extends FlameGame {
 
   void _onHandsOnTable() {
     _cancelWorkspaceCue();
-    _pendingWorkspaceCue = TimerComponent(
-      period: GameConfig.workspaceDollyLeadIn,
-      removeOnFinish: true,
-      onTick: _beginWorkspaceDolly,
-    );
-    add(_pendingWorkspaceCue!);
+    _openWorkspacePage();
   }
 
-  /// Straight forward dolly into the nail-care plate. The hand on the cushion
-  /// never moves — only the camera and a soft plate reveal.
-  void _beginWorkspaceDolly() {
-    _pendingWorkspaceCue = null;
+  /// Hard cut to the manicure page. The salon stays off-screen.
+  void _openWorkspacePage() {
     phase = GamePhase.workspace;
-    scene.workspace.reveal();
-    // First beat: ease toward the salon table so the move always travels
-    // forward from the seated framing instead of settling instantly.
-    director.focusOn(
-      GameConfig.cameraWorkspaceFocus,
-      zoom: GameConfig.cameraWorkspaceZoom,
-      speed: GameConfig.cameraWorkspaceDollySpeed,
-      onSettled: _onSalonTableFramed,
+    director.snapTo(
+      GameConfig.cameraNailcareFocus,
+      zoom: GameConfig.cameraNailcareZoom,
     );
+    scene.hideScenery();
+    scene.workspace.revealImmediate();
+    if (overlays.isActive(NailCareOverlay.id)) {
+      return;
+    }
+    nailCare.beginHandCleaning();
+    overlays.add(NailCareOverlay.id);
   }
 
-  void _onSalonTableFramed() {
+  void advanceNailCare() {
+    nailCare.advanceFromNext();
+  }
+
+  void _beginPinkyPage() {
+    scene.workspace.showPinkyNail();
     director.focusOn(
       GameConfig.cameraNailcareFocus,
       zoom: GameConfig.cameraNailcareZoom,
-      speed: GameConfig.cameraWorkspaceDollySpeed,
-      onSettled: _onWorkspaceCameraSettled,
+      speed: GameConfig.cameraPinkyZoomSpeed,
+      onSettled: nailCare.beginNailBuffering,
     );
   }
 
-  void _onWorkspaceCameraSettled() {
-    // Plate reveal can outlast a short dolly; wait for both before the ready cue.
-    if (scene.workspace.isRevealed) {
-      overlays.add(ArrivalCompleteOverlay.id);
-      return;
+  void _onNailCareFinished() {
+    overlays.remove(NailCareOverlay.id);
+    overlays.add(ArrivalCompleteOverlay.id);
+  }
+
+  /// Skips the arrival beat so tests can drive the manicure page directly.
+  @visibleForTesting
+  void debugOpenNailCare() {
+    overlays.remove(HomeOverlay.id);
+    overlays.remove(ArrivalCompleteOverlay.id);
+    overlays.remove(CustomerThoughtBubbleOverlay.id);
+    overlays.add(ArrivalControlsOverlay.id);
+    if (!overlays.isActive(NailCareOverlay.id)) {
+      overlays.add(NailCareOverlay.id);
     }
-    _cancelWorkspaceCue();
-    _pendingWorkspaceCue = TimerComponent(
-      period: 0.05,
-      repeat: true,
-      removeOnFinish: false,
-      onTick: () {
-        if (!scene.workspace.isRevealed) {
-          return;
-        }
-        _cancelWorkspaceCue();
-        overlays.add(ArrivalCompleteOverlay.id);
-      },
+    phase = GamePhase.workspace;
+    director.snapTo(
+      GameConfig.cameraNailcareFocus,
+      zoom: GameConfig.cameraNailcareZoom,
     );
-    add(_pendingWorkspaceCue!);
+    scene.hideScenery();
+    scene.workspace.revealImmediate();
+    nailCare.beginHandCleaning();
   }
 
   void _cancelWorkspaceCue() {

@@ -59,10 +59,24 @@ flutter:
 
   assets:
     - assets/images/
-    - assets/images/customer_01_hands_to_table.png
-    - assets/images/workspace_table_surface.jpg
-    - assets/images/workspace_hand_cushion.png
-    - assets/images/hand_01_reference.png
+    - assets/images/customer-walk-v1.png
+    - assets/images/customer1_stop.png
+    - assets/images/customer1_sit.png
+    - assets/images/customer1_wait.png
+    - assets/images/character_look.png
+    - assets/images/table.png
+    - assets/images/salon_chair.png
+    - assets/images/table_surface.png
+    - assets/images/door_frame.png
+    - assets/images/door.png
+    - assets/images/customer_emotion.png
+    - assets/images/spray.png
+    - assets/images/clips.png
+    - assets/images/short_nail.png
+    - assets/images/hand_wash.png
+    - assets/images/fifth_nail_clean.png
+    - assets/images/nail_buffer.png
+    - assets/images/hand_soap.png
 
   fonts:
     - family: PlayfairDisplay
@@ -73,6 +87,9 @@ flutter:
     - family: DMSans
       fonts:
         - asset: assets/fonts/DMSans-Variable.ttf
+    - family: Baloo2
+      fonts:
+        - asset: assets/fonts/Baloo2-Variable.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

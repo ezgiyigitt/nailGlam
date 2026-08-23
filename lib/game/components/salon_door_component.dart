@@ -24,7 +24,10 @@ class SalonDoorComponent extends PositionComponent {
     _leaf = SpriteComponent(
       sprite: leafSprite,
       size: SpriteAtlas.doorLeaf.size * leafScale,
-      position: Vector2(GameConfig.doorLeafHingeOffsetX, 0),
+      position: Vector2(
+        GameConfig.doorLeafHingeOffsetX,
+        -GameConfig.doorLeafLiftY,
+      ),
       anchor: Anchor.bottomLeft,
       priority: GameConfig.priorityDoorLeaf,
     );

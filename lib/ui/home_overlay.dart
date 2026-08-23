@@ -1,12 +1,9 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../game/config/asset_paths.dart';
 import 'how_to_play_screen.dart';
 
-/// Independent first screen. Gameplay remains hidden until Play is pressed.
+/// Independent first screen. Gameplay stays hidden until Start is pressed.
 class HomeOverlay extends StatefulWidget {
   const HomeOverlay({required this.onPlay, super.key});
 
@@ -19,13 +16,12 @@ class HomeOverlay extends StatefulWidget {
 }
 
 class _HomeOverlayState extends State<HomeOverlay> {
-  late final Future<ui.Image> _buttonSheet = _loadButtonSheet();
   bool _musicEnabled = true;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFE8CF),
+      backgroundColor: const Color(0xFFFFD6E8),
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
@@ -35,23 +31,38 @@ class _HomeOverlayState extends State<HomeOverlay> {
             alignment: Alignment.center,
             filterQuality: FilterQuality.high,
           ),
+          // Soft wash so logo and buttons stay readable on any wallpaper.
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: <Color>[
+                  Color(0x22FFFFFF),
+                  Color(0x00FFFFFF),
+                  Color(0x33FFB7D5),
+                ],
+                stops: <double>[0, 0.45, 1],
+              ),
+            ),
+          ),
           SafeArea(
-            minimum: const EdgeInsets.fromLTRB(18, 12, 18, 18),
+            minimum: const EdgeInsets.fromLTRB(20, 12, 20, 22),
             child: LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
                 final compact = constraints.maxHeight < 700;
                 final logoHeight =
-                    (constraints.maxHeight * (compact ? 0.48 : 0.53)).clamp(
-                      280.0,
-                      540.0,
+                    (constraints.maxHeight * (compact ? 0.42 : 0.46)).clamp(
+                      220.0,
+                      420.0,
                     );
-                final playWidth = (constraints.maxWidth * 0.56).clamp(
-                  190.0,
-                  270.0,
+                final startWidth = (constraints.maxWidth * 0.72).clamp(
+                  220.0,
+                  320.0,
                 );
-                final howWidth = (constraints.maxWidth * 0.5).clamp(
-                  180.0,
-                  235.0,
+                final howWidth = (constraints.maxWidth * 0.66).clamp(
+                  200.0,
+                  290.0,
                 );
 
                 return Column(
@@ -66,7 +77,6 @@ class _HomeOverlayState extends State<HomeOverlay> {
                             icon: _musicEnabled
                                 ? Icons.music_note_rounded
                                 : Icons.music_off_rounded,
-                            color: const Color(0xFFFF78B6),
                             onPressed: () =>
                                 setState(() => _musicEnabled = !_musicEnabled),
                           ),
@@ -74,69 +84,42 @@ class _HomeOverlayState extends State<HomeOverlay> {
                           _MenuIconButton(
                             tooltip: 'Settings',
                             icon: Icons.settings_rounded,
-                            color: const Color(0xFF9D69E7),
                             onPressed: () {},
                           ),
                         ],
                       ),
                     ),
                     Expanded(
-                      child: Image.asset(
-                        'assets/images/${AssetPaths.menuLogo}',
-                        height: logoHeight,
-                        fit: BoxFit.contain,
-                        alignment: Alignment.center,
-                        filterQuality: FilterQuality.high,
+                      child: Center(
+                        child: Image.asset(
+                          'assets/images/${AssetPaths.menuLogo}',
+                          height: logoHeight,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                        ),
                       ),
                     ),
-                    SizedBox(height: compact ? 6 : 14),
-                    FutureBuilder<ui.Image>(
-                      future: _buttonSheet,
-                      builder:
-                          (
-                            BuildContext context,
-                            AsyncSnapshot<ui.Image> snapshot,
-                          ) {
-                            if (!snapshot.hasData) {
-                              return SizedBox(height: compact ? 190 : 230);
-                            }
-                            return Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: <Widget>[
-                                _SpritePressButton(
-                                  image: snapshot.data!,
-                                  source: const Rect.fromLTWH(
-                                    18,
-                                    283,
-                                    988,
-                                    500,
-                                  ),
-                                  width: playWidth,
-                                  semanticLabel: 'Play',
-                                  onPressed: widget.onPlay,
-                                ),
-                                SizedBox(height: compact ? 8 : 14),
-                                _SpritePressButton(
-                                  image: snapshot.data!,
-                                  source: const Rect.fromLTWH(
-                                    48,
-                                    881,
-                                    929,
-                                    356,
-                                  ),
-                                  width: howWidth,
-                                  semanticLabel: 'How to play',
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => const HowToPlayScreen(),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
+                    SizedBox(height: compact ? 8 : 16),
+                    _GlossyMenuButton(
+                      label: 'START',
+                      width: startWidth,
+                      height: compact ? 64 : 72,
+                      primary: true,
+                      onPressed: widget.onPlay,
                     ),
-                    SizedBox(height: compact ? 8 : 18),
+                    SizedBox(height: compact ? 12 : 16),
+                    _GlossyMenuButton(
+                      label: 'HOW TO PLAY',
+                      width: howWidth,
+                      height: compact ? 56 : 62,
+                      primary: false,
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const HowToPlayScreen(),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: compact ? 10 : 18),
                   ],
                 );
               },
@@ -146,71 +129,126 @@ class _HomeOverlayState extends State<HomeOverlay> {
       ),
     );
   }
-
-  Future<ui.Image> _loadButtonSheet() async {
-    final data = await rootBundle.load(
-      'assets/images/${AssetPaths.menuButtons}',
-    );
-    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
-    final frame = await codec.getNextFrame();
-    codec.dispose();
-    return frame.image;
-  }
 }
 
-class _SpritePressButton extends StatefulWidget {
-  const _SpritePressButton({
-    required this.image,
-    required this.source,
+/// Bubble-gloss pink CTA that matches the NAIL GLAM logo sticker look.
+class _GlossyMenuButton extends StatefulWidget {
+  const _GlossyMenuButton({
+    required this.label,
     required this.width,
-    required this.semanticLabel,
+    required this.height,
+    required this.primary,
     required this.onPressed,
   });
 
-  final ui.Image image;
-  final Rect source;
+  final String label;
   final double width;
-  final String semanticLabel;
+  final double height;
+  final bool primary;
   final VoidCallback onPressed;
 
   @override
-  State<_SpritePressButton> createState() => _SpritePressButtonState();
+  State<_GlossyMenuButton> createState() => _GlossyMenuButtonState();
 }
 
-class _SpritePressButtonState extends State<_SpritePressButton> {
+class _GlossyMenuButtonState extends State<_GlossyMenuButton> {
   bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final visualHeight =
-        widget.width * widget.source.height / widget.source.width;
-    final hitPadding = (visualHeight * 0.08).clamp(6.0, 12.0);
+    final radius = widget.height * 0.48;
+    final cream = _MenuColors.cream;
+    final pink = widget.primary ? _MenuColors.pink : _MenuColors.pinkSoft;
+    final pinkDeep = widget.primary
+        ? _MenuColors.pinkDeep
+        : const Color(0xFFF06A9F);
 
     return Semantics(
       button: true,
-      label: widget.semanticLabel,
+      label: widget.label,
       child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
+        behavior: HitTestBehavior.opaque,
         onTapDown: (_) => setState(() => _pressed = true),
         onTapCancel: () => setState(() => _pressed = false),
         onTapUp: (_) {
           setState(() => _pressed = false);
           widget.onPressed();
         },
-        child: Padding(
-          padding: EdgeInsets.all(hitPadding),
-          child: AnimatedScale(
-            scale: _pressed ? 0.95 : 1,
-            duration: const Duration(milliseconds: 90),
-            curve: Curves.easeOutCubic,
-            child: SizedBox(
-              width: widget.width,
-              height: visualHeight,
-              child: CustomPaint(
-                painter: _SpriteCropPainter(
-                  image: widget.image,
-                  source: widget.source,
+        child: AnimatedScale(
+          scale: _pressed ? 0.96 : 1,
+          duration: const Duration(milliseconds: 90),
+          curve: Curves.easeOutCubic,
+          child: Container(
+            width: widget.width,
+            height: widget.height,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(radius),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0x55C2185B),
+                  blurRadius: _pressed ? 8 : 16,
+                  offset: Offset(0, _pressed ? 4 : 8),
                 ),
+              ],
+            ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(radius),
+                border: Border.all(color: cream, width: 5),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Color.lerp(pink, Colors.white, 0.22)!,
+                    pink,
+                    pinkDeep,
+                  ],
+                  stops: const <double>[0, 0.45, 1],
+                ),
+              ),
+              child: Stack(
+                children: <Widget>[
+                  Positioned(
+                    left: 18,
+                    right: 18,
+                    top: 7,
+                    height: widget.height * 0.34,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(radius),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: <Color>[
+                            Colors.white.withValues(alpha: 0.55),
+                            Colors.white.withValues(alpha: 0),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: Text(
+                      widget.label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Baloo2',
+                        fontSize: widget.primary ? 30 : 24,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                        height: 1,
+                        color: Colors.white,
+                        shadows: const <Shadow>[
+                          Shadow(
+                            color: Color(0x66B0004F),
+                            blurRadius: 0,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -220,40 +258,22 @@ class _SpritePressButtonState extends State<_SpritePressButton> {
   }
 }
 
-class _SpriteCropPainter extends CustomPainter {
-  const _SpriteCropPainter({required this.image, required this.source});
-
-  final ui.Image image;
-  final Rect source;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawImageRect(
-      image,
-      source,
-      Offset.zero & size,
-      Paint()
-        ..filterQuality = FilterQuality.high
-        ..isAntiAlias = true,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SpriteCropPainter oldDelegate) =>
-      oldDelegate.image != image || oldDelegate.source != source;
+abstract final class _MenuColors {
+  static const Color pink = Color(0xFFFF6BA8);
+  static const Color pinkSoft = Color(0xFFFF85B8);
+  static const Color pinkDeep = Color(0xFFE84F8F);
+  static const Color cream = Color(0xFFFFF6F0);
 }
 
 class _MenuIconButton extends StatelessWidget {
   const _MenuIconButton({
     required this.tooltip,
     required this.icon,
-    required this.color,
     required this.onPressed,
   });
 
   final String tooltip;
   final IconData icon;
-  final Color color;
   final VoidCallback onPressed;
 
   @override
@@ -261,19 +281,19 @@ class _MenuIconButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: color,
-        elevation: 5,
+        color: _MenuColors.pink,
+        elevation: 4,
         shadowColor: const Color(0x55964172),
         shape: const CircleBorder(
-          side: BorderSide(color: Colors.white, width: 2.5),
+          side: BorderSide(color: _MenuColors.cream, width: 3),
         ),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onPressed,
           child: SizedBox(
-            width: 48,
-            height: 48,
-            child: Icon(icon, color: Colors.white, size: 26),
+            width: 46,
+            height: 46,
+            child: Icon(icon, color: Colors.white, size: 24),
           ),
         ),
       ),

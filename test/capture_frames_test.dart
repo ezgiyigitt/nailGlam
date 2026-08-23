@@ -11,6 +11,7 @@ import 'package:nail_glam/ui/arrival_complete_overlay.dart';
 import 'package:nail_glam/ui/arrival_controls_overlay.dart';
 import 'package:nail_glam/ui/customer_thought_bubble_overlay.dart';
 import 'package:nail_glam/ui/home_overlay.dart';
+import 'package:nail_glam/ui/nail_care_overlay.dart';
 
 /// Development helper: renders key beats of the arrival to PNGs so the scene
 /// composition can be eyeballed without launching a device.
@@ -48,6 +49,8 @@ void main() {
                         CustomerThoughtBubbleOverlay(
                           onComplete: game.completeCustomerDialogue,
                         ),
+                NailCareOverlay.id: (BuildContext context, NailGlamGame game) =>
+                    NailCareOverlay(game: game),
               },
         ),
       ),
@@ -86,6 +89,17 @@ void main() {
     }
     await capture('02_walking');
 
+    // Extra walk samples so gait (contact/pass/contact/pass) can be eyeballed.
+    for (var sample = 0; sample < 4; sample++) {
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(frame);
+      }
+      if (game.scene.customer.phase != CustomerPhase.walking) {
+        break;
+      }
+      await capture('02b_walk_$sample');
+    }
+
     // Approaching the chair at full perspective scale.
     while (game.scene.customer.phase == CustomerPhase.walking) {
       await tester.pump(frame);
@@ -97,6 +111,23 @@ void main() {
       await tester.pump(frame);
     }
     await capture('04_seated');
+
+    // Second arrival must walk again (regression for playing=false bug).
+    game.startArrival();
+    for (var i = 0; i < 80; i++) {
+      await tester.pump(frame);
+    }
+    expect(game.scene.customer.phase, CustomerPhase.walking);
+    expect(game.scene.customer.playing, isTrue);
+    await capture('06_replay_walking');
+
+    // Resume first-run seating path for the remaining captures.
+    while (game.scene.customer.phase == CustomerPhase.walking) {
+      await tester.pump(frame);
+    }
+    while (game.scene.customer.phase != CustomerPhase.seatedIdle) {
+      await tester.pump(frame);
+    }
 
     // Camera settled on the workspace.
     game.completeCustomerDialogue();

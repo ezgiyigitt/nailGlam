@@ -9,6 +9,7 @@ import 'package:nail_glam/ui/arrival_complete_overlay.dart';
 import 'package:nail_glam/ui/arrival_controls_overlay.dart';
 import 'package:nail_glam/ui/customer_thought_bubble_overlay.dart';
 import 'package:nail_glam/ui/home_overlay.dart';
+import 'package:nail_glam/ui/nail_care_overlay.dart';
 
 /// Drives the real arrival sequence frame by frame and measures the things
 /// that are easy to get wrong and hard to spot by eye: the customer skating
@@ -50,6 +51,8 @@ void main() {
                           CustomerThoughtBubbleOverlay(
                             onComplete: game.completeCustomerDialogue,
                           ),
+                  NailCareOverlay.id: (BuildContext context, NailGlamGame game) =>
+                      NailCareOverlay(game: game),
                 },
           ),
         ),
@@ -75,7 +78,7 @@ void main() {
       double? lockedSeatY;
       var completedDialogue = false;
 
-      for (var i = 0; i < 900; i++) {
+      for (var i = 0; i < 1200; i++) {
         await tester.pump(frame);
 
         final customer = game.scene.customer;
@@ -139,7 +142,7 @@ void main() {
         }
       }
 
-      // Two-stage dolly + plate reveal; wait until the ready cue appears.
+      // Workspace is a hard page cut; wait until the manicure HUD is up.
       for (var i = 0; i < 800; i++) {
         await tester.pump(frame);
         expect(
@@ -152,7 +155,7 @@ void main() {
           closeTo(GameConfig.customerNearGroundY, 0.001),
           reason: 'seated idle changed world y',
         );
-        if (game.overlays.isActive(ArrivalCompleteOverlay.id) &&
+        if (game.overlays.isActive(NailCareOverlay.id) &&
             game.scene.workspace.isRevealed) {
           break;
         }
@@ -171,8 +174,8 @@ void main() {
       );
       expect(
         game.scene.customer.position.x,
-        closeTo(GameConfig.tableX, 0.5),
-        reason: 'seat must stay centred on the table',
+        closeTo(GameConfig.customerSeatX, 0.5),
+        reason: 'seat must stay on the table knee well',
       );
 
       // A single frame of walking moves her ground line by well under 2 units;
@@ -186,7 +189,7 @@ void main() {
       expect(
         game.scene.workspace.isRevealed,
         isTrue,
-        reason: 'nail-care plate never faded in',
+        reason: 'nail-care page never opened',
       );
       expect(
         game.camera.viewfinder.position.x,
@@ -199,9 +202,90 @@ void main() {
         reason: 'camera never settled on the nail-care framing',
       );
       expect(
-        game.overlays.isActive(ArrivalCompleteOverlay.id),
+        game.overlays.isActive(NailCareOverlay.id),
         isTrue,
-        reason: 'workspace ready cue never appeared',
+        reason: 'nail-care page never opened after the hand close-up',
+      );
+    },
+  );
+
+  testWidgets(
+    'replaying arrival resumes the walk animation loop',
+    (WidgetTester tester) async {
+      final game = NailGlamGame();
+
+      await tester.runAsync(() async {
+        await game.images.loadAll(AssetPaths.all);
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: GameWidget<NailGlamGame>(
+            game: game,
+            overlayBuilderMap:
+                <String, Widget Function(BuildContext, NailGlamGame)>{
+                  HomeOverlay.id: (BuildContext context, NailGlamGame game) =>
+                      HomeOverlay(onPlay: game.startArrival),
+                  ArrivalCompleteOverlay.id: (
+                    BuildContext context,
+                    NailGlamGame game,
+                  ) => ArrivalCompleteOverlay(onReplay: game.startArrival),
+                  ArrivalControlsOverlay.id:
+                      (BuildContext context, NailGlamGame game) =>
+                          ArrivalControlsOverlay(
+                            onTogglePause: game.togglePause,
+                            onHome: game.returnToHome,
+                          ),
+                  CustomerThoughtBubbleOverlay.id:
+                      (BuildContext context, NailGlamGame game) =>
+                          CustomerThoughtBubbleOverlay(
+                            onComplete: game.completeCustomerDialogue,
+                          ),
+                  NailCareOverlay.id: (BuildContext context, NailGlamGame game) =>
+                      NailCareOverlay(game: game),
+                },
+          ),
+        ),
+      );
+      for (var i = 0; i < 5 && !game.isLoaded; i++) {
+        await tester.pump();
+      }
+      expect(game.isLoaded, isTrue);
+
+      // First arrival through seated idle (hands finish and stop playing).
+      game.startArrival();
+      const frame = Duration(milliseconds: 16);
+      for (var i = 0; i < 1200; i++) {
+        await tester.pump(frame);
+        if (game.scene.customer.phase == CustomerPhase.seatedIdle) {
+          break;
+        }
+      }
+      expect(game.scene.customer.phase, CustomerPhase.seatedIdle);
+      expect(game.scene.customer.playing, isFalse);
+
+      // Second arrival must walk with the animation ticker advancing again.
+      game.startArrival();
+      var sawWalkFrameAdvance = false;
+      var previousIndex = -1;
+      for (var i = 0; i < 200; i++) {
+        await tester.pump(frame);
+        final customer = game.scene.customer;
+        if (customer.phase != CustomerPhase.walking) {
+          continue;
+        }
+        expect(customer.playing, isTrue, reason: 'walk must be playing on replay');
+        final index = customer.animationTicker?.currentIndex ?? -1;
+        if (previousIndex >= 0 && index != previousIndex) {
+          sawWalkFrameAdvance = true;
+          break;
+        }
+        previousIndex = index;
+      }
+      expect(
+        sawWalkFrameAdvance,
+        isTrue,
+        reason: 'second arrival never advanced walk frames',
       );
     },
   );

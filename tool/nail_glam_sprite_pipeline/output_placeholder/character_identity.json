@@ -1,0 +1,17 @@
+{
+  "path": "C:\\Users\\Ezgi\\Documents\\GitHub\\nailGlam\\assets\\images\\character_look.png",
+  "width": 1024,
+  "height": 1536,
+  "hair": "long wavy brown",
+  "shirt": "mauve-pink rolled-sleeve button shirt",
+  "pants": "cream-white high-waisted flares",
+  "shoes": "pink-white sneakers",
+  "bag": "small pink shoulder bag",
+  "style": "stylized 3D premium mobile cartoon",
+  "prompt_lock": "EXACT same woman every frame \u2014 Character Identity Lock. Long voluminous wavy brown hair, large dark brown eyes, soft smile, gold hoop earrings, thin gold pendant necklace, mauve-pink button-down shirt with sleeves rolled to the elbows, high-waisted cream-white flared trousers, pink-and-white sneakers, small pink shoulder bag with gold chain. Premium stylized 3D cartoon mobile-game look. NEVER redesign face, hair, outfit, proportions, or age.",
+  "mean_rgb": [
+    206.57433323609564,
+    169.65605529085292,
+    167.63401474522476
+  ]
+}

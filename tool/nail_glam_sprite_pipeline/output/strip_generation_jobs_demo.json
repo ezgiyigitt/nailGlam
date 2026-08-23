@@ -1,0 +1,32 @@
+[
+  {
+    "start_frame": 0,
+    "end_frame": 3,
+    "sequences": [
+      "walk",
+      "walk",
+      "walk",
+      "walk"
+    ]
+  },
+  {
+    "start_frame": 4,
+    "end_frame": 7,
+    "sequences": [
+      "align",
+      "align",
+      "align",
+      "align"
+    ]
+  },
+  {
+    "start_frame": 8,
+    "end_frame": 11,
+    "sequences": [
+      "sit",
+      "sit",
+      "sit",
+      "sit"
+    ]
+  }
+]

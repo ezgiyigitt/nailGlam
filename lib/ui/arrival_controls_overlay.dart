@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../game/config/game_config.dart';
+
 /// Lightweight controls shown while the customer arrival scene is active.
 class ArrivalControlsOverlay extends StatefulWidget {
   const ArrivalControlsOverlay({
@@ -29,7 +31,7 @@ class _ArrivalControlsOverlayState extends State<ArrivalControlsOverlay> {
             child: IgnorePointer(child: ColoredBox(color: Color(0x33000000))),
           ),
         SafeArea(
-          minimum: const EdgeInsets.all(16),
+          minimum: const EdgeInsets.all(GameConfig.hudPad),
           child: Align(
             alignment: Alignment.topLeft,
             child: Row(
@@ -46,7 +48,7 @@ class _ArrivalControlsOverlayState extends State<ArrivalControlsOverlay> {
                     setState(() => _paused = paused);
                   },
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: GameConfig.hudButtonGap),
                 _GameIconButton(
                   tooltip: 'Ana sayfa',
                   icon: Icons.home_rounded,
@@ -96,28 +98,36 @@ class _GameIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
-      child: Container(
-        width: 54,
-        height: 59,
-        decoration: BoxDecoration(
-          color: Color.lerp(color, Colors.black, 0.25),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        alignment: Alignment.topCenter,
-        child: Material(
-          color: color,
-          borderRadius: BorderRadius.circular(18),
-          child: InkWell(
-            onTap: onPressed,
+      triggerMode: TooltipTriggerMode.longPress,
+      waitDuration: const Duration(milliseconds: 600),
+      child: SizedBox(
+        width: GameConfig.hudButtonWidth,
+        height: GameConfig.hudButtonHeight,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Color.lerp(color, Colors.black, 0.25),
             borderRadius: BorderRadius.circular(18),
-            child: Container(
-              width: 54,
-              height: 53,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.white, width: 2.5),
+          ),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Material(
+              color: color,
+              borderRadius: BorderRadius.circular(18),
+              child: InkWell(
+                onTap: onPressed,
                 borderRadius: BorderRadius.circular(18),
+                child: SizedBox(
+                  width: GameConfig.hudButtonWidth,
+                  height: GameConfig.hudButtonHeight - 6,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.white, width: 2.5),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(icon, color: Colors.white, size: 30),
+                  ),
+                ),
               ),
-              child: Icon(icon, color: Colors.white, size: 30),
             ),
           ),
         ),

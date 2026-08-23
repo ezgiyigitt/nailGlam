@@ -13,42 +13,34 @@ enum CustomerPhase { offstage, walking, sitting, seatedIdle, handsToTable }
 
 /// The arriving customer.
 ///
-/// Her sprite only ever plays a cycle in place; every bit of travel, depth and
-/// perspective scaling is driven here in world space. Keeping those two things
-/// separate is what lets the same 8-frame walk read correctly at any speed.
+/// Her sprite only ever plays a cycle in place; travel and perspective live
+/// in world space so sheet swaps do not skate her across the floor.
 class CustomerComponent extends SpriteAnimationComponent {
   CustomerComponent({
     required SpriteAnimation walkAnimation,
+    required SpriteAnimation stopAnimation,
+    required SpriteAnimation turnAnimation,
     required SpriteAnimation sitAnimation,
-    required SpriteAnimation sitIdleAnimation,
-    required SpriteAnimation handsToTableAnimation,
     required this.shadow,
   }) : _walk = walkAnimation,
+       _stop = stopAnimation,
+       _turn = turnAnimation,
        _sit = sitAnimation,
-       _sitIdle = sitIdleAnimation,
-       _handsToTable = handsToTableAnimation,
        super(
          anchor: Anchor.bottomCenter,
          priority: GameConfig.priorityCustomer,
        );
 
   final SpriteAnimation _walk;
+  final SpriteAnimation _stop;
+  final SpriteAnimation _turn;
   final SpriteAnimation _sit;
-  final SpriteAnimation _sitIdle;
-  final SpriteAnimation _handsToTable;
 
   final SoftShadowComponent shadow;
 
-  /// Fired once she has cleared the doorway, so the door can swing shut.
   VoidCallback? onClearedDoorway;
-
-  /// Fired when she reaches the chair and the sit animation starts.
   VoidCallback? onStartedSitting;
-
-  /// Fired when the sit animation finishes and the idle loop takes over.
   VoidCallback? onSeated;
-
-  /// Fired when the hands-to-table transition finishes on the final frame.
   VoidCallback? onHandsOnTable;
 
   CustomerPhase _phase = CustomerPhase.offstage;
@@ -58,10 +50,8 @@ class CustomerComponent extends SpriteAnimationComponent {
 
   CustomerPhase get phase => _phase;
 
-  /// Perspective scale at her current position along the walk.
   double get depthScale => scale.x;
 
-  /// World y of the floor directly beneath her feet.
   double get groundY =>
       _phase == CustomerPhase.sitting ||
           _phase == CustomerPhase.seatedIdle ||
@@ -81,14 +71,11 @@ class CustomerComponent extends SpriteAnimationComponent {
 
   @override
   Future<void> onLoad() async {
-    // Character art is enlarged in world space. High-quality sampling avoids
-    // the blocky edges produced by the default low-cost texture filter.
     paint.filterQuality = FilterQuality.high;
     _applyAnimation(_walk, SpriteAtlas.customerWalk);
     resetToDoorway();
   }
 
-  /// Places her back in the doorway, invisible, ready for a new arrival.
   void resetToDoorway() {
     _clearEffects();
     _phase = CustomerPhase.offstage;
@@ -99,18 +86,20 @@ class CustomerComponent extends SpriteAnimationComponent {
       GameConfig.customerNearGroundY,
     );
     opacity = 0;
+    playing = true;
     _applyAnimation(_walk, SpriteAtlas.customerWalk);
     position.x = GameConfig.customerStartX;
     _applyPerspective();
     _syncShadow();
   }
 
-  /// Starts her walking in, fading up so she does not pop into frame.
   void enterSalon() {
     if (_phase != CustomerPhase.offstage) {
       return;
     }
     _phase = CustomerPhase.walking;
+    playing = true;
+    _applyAnimation(_walk, SpriteAtlas.customerWalk);
     add(
       OpacityEffect.to(
         1,
@@ -119,44 +108,17 @@ class CustomerComponent extends SpriteAnimationComponent {
     );
   }
 
-  /// Plays the one-shot raise onto the table. World position stays locked.
-  ///
-  /// Body priority stays behind the manicure table; a separate tabletop-clipped
-  /// pass draws only the pixels that land on the work surface so hands rest on
-  /// top without pulling her torso through the furniture.
   void playHandsToTable() {
-    if (_phase != CustomerPhase.seatedIdle) {
+    if (_phase != CustomerPhase.seatedIdle &&
+        _phase != CustomerPhase.handsToTable) {
       return;
     }
     _clearEffects();
     position.setFrom(_lockedSeatPosition);
     _phase = CustomerPhase.handsToTable;
     priority = GameConfig.priorityCustomer;
-    _applyAnimation(_handsToTable, SpriteAtlas.customerHandsToTable);
-    animationTicker?.onComplete = () {
-      position.setFrom(_lockedSeatPosition);
-      onHandsOnTable?.call();
-    };
-  }
-
-  /// Foot padding applied while seated so callers can match the seated render.
-  double get seatedFootOffset =>
-      _phase == CustomerPhase.sitting ||
-          _phase == CustomerPhase.seatedIdle ||
-          _phase == CustomerPhase.handsToTable
-      ? _footOffset
-      : 0;
-
-  /// Draws the current frame with the same seated foot compensation [render]
-  /// uses. Used by the tabletop hand pass so body and hands share one sheet.
-  void renderSeatedFrame(Canvas canvas) {
-    canvas.save();
-    canvas.translate(0, seatedFootOffset);
-    final sprite = animationTicker?.getSprite();
-    if (sprite != null) {
-      sprite.render(canvas, size: size, overridePaint: paint);
-    }
-    canvas.restore();
+    playing = false;
+    onHandsOnTable?.call();
   }
 
   @override
@@ -164,8 +126,22 @@ class CustomerComponent extends SpriteAnimationComponent {
     super.update(dt);
 
     if (_phase == CustomerPhase.walking) {
+      final remaining = GameConfig.customerSeatX - position.x;
+      var speed = GameConfig.customerWalkSpeed;
+      if (remaining <= GameConfig.walkSlowdownDistance) {
+        final t = (1.0 - remaining / GameConfig.walkSlowdownDistance).clamp(
+          0.0,
+          1.0,
+        );
+        speed = _lerp(
+          GameConfig.customerWalkSpeed,
+          GameConfig.customerWalkEndSpeed,
+          t * t,
+        );
+      }
+
       position.x = math.min(
-        position.x + GameConfig.customerWalkSpeed * dt,
+        position.x + speed * dt,
         GameConfig.customerSeatX,
       );
       _applyPerspective();
@@ -183,9 +159,6 @@ class CustomerComponent extends SpriteAnimationComponent {
     } else if (_phase == CustomerPhase.sitting ||
         _phase == CustomerPhase.seatedIdle ||
         _phase == CustomerPhase.handsToTable) {
-      // World movement and sprite animation are intentionally independent.
-      // Re-applying the locked coordinate also prevents any future effect or
-      // controller from drifting the seated customer.
       position.setFrom(_lockedSeatPosition);
     }
 
@@ -200,17 +173,37 @@ class CustomerComponent extends SpriteAnimationComponent {
     );
     position.setFrom(_lockedSeatPosition);
     _phase = CustomerPhase.sitting;
-    _applyAnimation(_sit, SpriteAtlas.customerSit);
+    scale.setValues(GameConfig.customerNearScale, GameConfig.customerNearScale);
     onStartedSitting?.call();
+    _playSheet(_stop, SpriteAtlas.customerStop, _playTurn);
+  }
+
+  void _playTurn() {
+    _playSheet(_turn, SpriteAtlas.customerTurn, _playSit);
+  }
+
+  void _playSit() {
+    _playSheet(_sit, SpriteAtlas.customerSit, () {
+      playing = false;
+      _phase = CustomerPhase.seatedIdle;
+      onSeated?.call();
+    });
+  }
+
+  void _playSheet(
+    SpriteAnimation animation,
+    CharacterSheet sheet,
+    VoidCallback onComplete,
+  ) {
+    position.setFrom(_lockedSeatPosition);
+    playing = true;
+    _applyAnimation(animation, sheet);
     animationTicker?.onComplete = () {
       position.setFrom(_lockedSeatPosition);
-      _phase = CustomerPhase.seatedIdle;
-      _applyAnimation(_sitIdle, SpriteAtlas.customerSitIdle);
-      onSeated?.call();
+      onComplete();
     };
   }
 
-  /// Swaps only the rendered sheet; it never modifies world position.
   void _applyAnimation(SpriteAnimation newAnimation, CharacterSheet sheet) {
     animation = newAnimation;
     animationTicker?.reset();
@@ -223,8 +216,6 @@ class CustomerComponent extends SpriteAnimationComponent {
     if (_phase == CustomerPhase.sitting ||
         _phase == CustomerPhase.seatedIdle ||
         _phase == CustomerPhase.handsToTable) {
-      // Frame whitespace is an art-layout detail, not world movement. Offset
-      // only the pixels so every frame keeps its feet on the locked ground.
       canvas.save();
       canvas.translate(0, _footOffset);
       super.render(canvas);
@@ -234,8 +225,6 @@ class CustomerComponent extends SpriteAnimationComponent {
     super.render(canvas);
   }
 
-  /// Maps her horizontal progress onto a shallow diagonal and a size ramp, so
-  /// walking towards the manicure table also reads as walking towards the lens.
   void _applyPerspective() {
     final travel = GameConfig.customerSeatX - GameConfig.customerStartX;
     final t = travel == 0
@@ -271,8 +260,6 @@ class CustomerComponent extends SpriteAnimationComponent {
       GameConfig.shadowWidth * s * widthFactor,
       GameConfig.shadowHeight * s * heightFactor,
     );
-    // Opacity is folded into strength so the shadow fades up with her instead
-    // of being stamped on the floor before she is visible.
     shadow.strength = s * strengthFactor * opacity;
   }
 

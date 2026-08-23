@@ -10,6 +10,7 @@ import 'ui/arrival_complete_overlay.dart';
 import 'ui/arrival_controls_overlay.dart';
 import 'ui/customer_thought_bubble_overlay.dart';
 import 'ui/home_overlay.dart';
+import 'ui/nail_care_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,6 +73,8 @@ class _GameHostState extends State<GameHost> {
                 CustomerThoughtBubbleOverlay(
                   onComplete: game.completeCustomerDialogue,
                 ),
+        NailCareOverlay.id: (BuildContext context, NailGlamGame game) =>
+            NailCareOverlay(game: game),
       },
       initialActiveOverlays: const <String>[HomeOverlay.id],
     );

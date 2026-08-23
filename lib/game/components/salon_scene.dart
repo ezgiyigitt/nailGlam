@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
@@ -21,6 +22,9 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
   late final NailWorkspace workspace;
   late final PositionComponent tableBase;
   late final PositionComponent tableTop;
+  late final PositionComponent chair;
+
+  bool _sceneryHidden = false;
 
   @override
   Future<void> onLoad() async {
@@ -28,18 +32,17 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
     final floorImage = await game.images.load(AssetPaths.floor);
     final doorFrameImage = await game.images.load(AssetPaths.doorFrame);
     final doorLeafImage = await game.images.load(AssetPaths.doorLeaf);
-    final chairImage = await game.images.load(AssetPaths.chair);
     final tableImage = await game.images.load(AssetPaths.nailTable);
+    final chairImage = await game.images.load(AssetPaths.salonChair);
     final plantImage = await game.images.load(AssetPaths.plant);
     final walkImage = await game.images.load(AssetPaths.customerWalk);
+    final stopImage = await game.images.load(AssetPaths.customerStop);
+    final turnImage = await game.images.load(AssetPaths.customerTurn);
     final sitImage = await game.images.load(AssetPaths.customerSit);
-    final sitIdleImage = await game.images.load(AssetPaths.customerSitIdle);
-    final handsToTableImage = await game.images.load(
-      AssetPaths.customerHandsToTable,
-    );
 
     tableBase = _buildTableBase(tableImage);
     tableTop = _buildTableTop(tableImage);
+    chair = _buildChair(chairImage);
 
     final nearPlant = _buildNearPlant(plantImage);
     final farPlant = _buildFarPlant(plantImage);
@@ -48,7 +51,15 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
       _buildWall(wallImage),
       _buildDoorwayBackdrop(),
       _buildFloor(floorImage),
-      _buildChair(chairImage),
+      SoftShadowComponent(priority: GameConfig.priorityChair)
+        ..size.setValues(420, 70)
+        ..position.setValues(GameConfig.chairX, GameConfig.chairGroundY)
+        ..strength = 0.50,
+      chair,
+      SoftShadowComponent(priority: GameConfig.priorityTableBase)
+        ..size.setValues(860, 88)
+        ..position.setValues(GameConfig.tableX, GameConfig.tableGroundY)
+        ..strength = 0.58,
       tableBase,
       tableTop,
       _PropContactShadow(
@@ -85,22 +96,22 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
         SpriteAtlas.customerWalk,
         GameConfig.walkFrameTime,
       ),
+      stopAnimation: _animation(
+        stopImage,
+        SpriteAtlas.customerStop,
+        GameConfig.stopFrameTime,
+        loop: false,
+      ),
+      turnAnimation: _animation(
+        turnImage,
+        SpriteAtlas.customerTurn,
+        GameConfig.turnFrameTime,
+        loop: false,
+      ),
       sitAnimation: _animation(
         sitImage,
         SpriteAtlas.customerSit,
         GameConfig.sitFrameTime,
-        loop: false,
-      ),
-      sitIdleAnimation: _animation(
-        sitIdleImage,
-        SpriteAtlas.customerSitIdle,
-        GameConfig.sitIdleFrameTime,
-        loop: false,
-      ),
-      handsToTableAnimation: _animation(
-        handsToTableImage,
-        SpriteAtlas.customerHandsToTable,
-        GameConfig.handsToTableFrameTime,
         loop: false,
       ),
       shadow: shadow,
@@ -110,7 +121,6 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
       door,
       shadow,
       customer,
-      _HandsOnTabletopPass(customer: customer, tableTop: tableTop),
     ]);
 
     workspace = NailWorkspace();
@@ -119,9 +129,24 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
 
   /// Returns the scene to its pre-arrival state.
   void reset() {
+    showScenery();
     door.resetClosed();
     customer.resetToDoorway();
     workspace.hideImmediate();
+  }
+
+  /// Nail-care is a new page; the salon must not render behind it.
+  void hideScenery() => _sceneryHidden = true;
+
+  void showScenery() => _sceneryHidden = false;
+
+  @override
+  void renderTree(ui.Canvas canvas) {
+    if (!_sceneryHidden) {
+      super.renderTree(canvas);
+      return;
+    }
+    workspace.renderTree(canvas);
   }
 
   // -------------------------------------------------------------------------
@@ -171,12 +196,15 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
     );
   }
 
-  Component _buildChair(ui.Image image) {
-    final scale = GameConfig.chairHeight / SpriteAtlas.chair.size.y;
+  PositionComponent _buildChair(ui.Image image) {
+    final scale = GameConfig.chairHeight / SpriteAtlas.salonChair.size.y;
     return SpriteComponent(
-      sprite: _region(image, SpriteAtlas.chair),
-      size: SpriteAtlas.chair.size * scale,
-      position: Vector2(GameConfig.chairX, GameConfig.customerNearGroundY),
+      sprite: _region(image, SpriteAtlas.salonChair),
+      size: SpriteAtlas.salonChair.size * scale,
+      position: Vector2(
+        GameConfig.chairX + GameConfig.chairArtOffsetX,
+        GameConfig.chairGroundY,
+      ),
       anchor: Anchor.bottomCenter,
       priority: GameConfig.priorityChair,
     );
@@ -195,12 +223,13 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
 
   PositionComponent _buildTableTop(ui.Image image) {
     final scale = GameConfig.tableHeight / SpriteAtlas.nailTable.size.y;
-    return _TabletopOccluder(
+    return SpriteComponent(
       sprite: _region(image, SpriteAtlas.nailTable),
       size: SpriteAtlas.nailTable.size * scale,
       position: Vector2(GameConfig.tableX, GameConfig.tableGroundY),
+      anchor: Anchor.bottomCenter,
       priority: GameConfig.priorityTable,
-    );
+    )..opacity = 0;
   }
 
   DepthSpriteComponent _buildNearPlant(ui.Image image) {
@@ -246,93 +275,16 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
   }) {
     final frames = <Sprite>[
       for (final origin in sheet.framePositions)
-        Sprite(image, srcPosition: origin, srcSize: sheet.frameSize),
+        Sprite(
+          image,
+          srcPosition: origin,
+          srcSize: Vector2(
+            math.min(sheet.frameSize.x, image.width - origin.x),
+            math.min(sheet.frameSize.y, image.height - origin.y),
+          ),
+        ),
     ];
     return SpriteAnimation.spriteList(frames, stepTime: stepTime, loop: loop);
-  }
-}
-
-/// Perspective tabletop silhouette shared by the occluder and the hand pass.
-ui.Path manicureTabletopPath(Vector2 size) {
-  return ui.Path()
-    ..moveTo(size.x * 0.002, size.y * 0.171)
-    ..lineTo(size.x * 0.732, 0)
-    ..lineTo(size.x * 0.997, size.y * 0.106)
-    ..lineTo(size.x * 0.994, size.y * 0.157)
-    ..lineTo(size.x * 0.213, size.y * 0.351)
-    ..lineTo(0, size.y * 0.215)
-    ..close();
-}
-
-/// Front render pass for only the perspective tabletop silhouette.
-///
-/// Layer order is: chair → customer → full table body → this tabletop.
-/// The customer never jumps above the table; hands that land on the surface are
-/// re-drawn by [_HandsOnTabletopPass] after this pass.
-class _TabletopOccluder extends SpriteComponent {
-  _TabletopOccluder({
-    required super.sprite,
-    required super.size,
-    required super.position,
-    required super.priority,
-  }) : super(anchor: Anchor.bottomCenter);
-
-  @override
-  void render(ui.Canvas canvas) {
-    canvas.save();
-    canvas.clipPath(manicureTabletopPath(size), doAntiAlias: true);
-    super.render(canvas);
-    canvas.restore();
-  }
-}
-
-/// Re-draws the seated customer clipped to the tabletop silhouette.
-///
-/// Body stays at [GameConfig.priorityCustomer] behind the table. Only the
-/// pixels that fall on the work surface (the raised hands) are painted again
-/// above the tabletop, so she never reads as buried inside the furniture.
-class _HandsOnTabletopPass extends PositionComponent {
-  _HandsOnTabletopPass({required this.customer, required this.tableTop})
-    : super(priority: GameConfig.priorityHandsOnTable);
-
-  final CustomerComponent customer;
-  final PositionComponent tableTop;
-
-  @override
-  void update(double dt) {
-    super.update(dt);
-    position.setFrom(customer.position);
-    size.setFrom(customer.size);
-    scale.setFrom(customer.scale);
-    anchor = customer.anchor;
-  }
-
-  @override
-  void render(ui.Canvas canvas) {
-    if (customer.phase != CustomerPhase.handsToTable) {
-      return;
-    }
-
-    final clip = _tabletopPathInCustomerSpace();
-    canvas.save();
-    canvas.clipPath(clip, doAntiAlias: true);
-    customer.renderSeatedFrame(canvas);
-    canvas.restore();
-  }
-
-  /// Maps the tabletop polygon from table-local into this component's local
-  /// space. Both boxes are bottom-centred, so the offset is the difference
-  /// between their anchor points plus the difference in box size. The table no
-  /// longer shares the customer's ground line, so this cannot assume zero.
-  ui.Path _tabletopPathInCustomerSpace() {
-    final dx =
-        (tableTop.position.x - position.x) +
-        (size.x - tableTop.size.x) / 2;
-    final dy =
-        (tableTop.position.y - position.y) + size.y - tableTop.size.y;
-    return manicureTabletopPath(
-      tableTop.size,
-    ).shift(ui.Offset(dx, dy));
   }
 }
 

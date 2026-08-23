@@ -24,7 +24,7 @@ class _CustomerThoughtBubbleOverlayState
     "Let's make them fabulous! 💅",
   ];
 
-  static const String _uiFont = 'DMSans';
+  static const String _uiFont = 'Baloo2';
 
   int _index = 0;
   bool _finishing = false;
@@ -83,7 +83,7 @@ class _CustomerThoughtBubbleOverlayState
                       label: 'Customer dialogue. Tap to continue.',
                       child: GestureDetector(
                         key: const Key('customer-thought-bubble'),
-                        behavior: HitTestBehavior.opaque,
+                        behavior: HitTestBehavior.translucent,
                         onTap: _advance,
                         child: CustomPaint(
                           painter: const _SpeechBubblePainter(),
@@ -120,10 +120,11 @@ class _CustomerThoughtBubbleOverlayState
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontFamily: _uiFont,
-                                    color: const Color(0xFF6B524C),
-                                    fontSize: compact ? 14.5 : 15.5,
-                                    fontWeight: FontWeight.w500,
-                                    height: 1.35,
+                                    color: const Color(0xFF7A3D5C),
+                                    fontSize: compact ? 17 : 19,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.2,
+                                    decoration: TextDecoration.none,
                                   ),
                                 ),
                               ),
@@ -164,44 +165,42 @@ class _CustomerThoughtBubbleOverlayState
 class _SpeechBubblePainter extends CustomPainter {
   const _SpeechBubblePainter();
 
-  @override
-  void paint(Canvas canvas, Size size) {
+  static Path _shape(Size size) {
     const radius = 18.0;
-    const tailWidth = 14.0;
-    const tailHeight = 10.0;
+    const tailWidth = 16.0;
+    const tailHeight = 11.0;
     final bodyHeight = size.height - tailHeight;
     final body = RRect.fromRectAndRadius(
       Rect.fromLTWH(0, 0, size.width, bodyHeight),
       const Radius.circular(radius),
     );
-
-    // Tail sits slightly right of center so the bubble can sit beside her head.
     final tipX = size.width * 0.68;
     final tail = Path()
       ..moveTo(tipX - tailWidth / 2, bodyHeight - 1)
       ..lineTo(tipX, size.height)
       ..lineTo(tipX + tailWidth / 2, bodyHeight - 1)
       ..close();
-
-    final shape = Path()
+    return Path()
       ..addRRect(body)
       ..addPath(tail, Offset.zero);
+  }
 
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shape = _shape(size);
+
+    // Solid offset only — a blur mask reads as a yellow smear on Flutter web.
     canvas.drawPath(
-      shape.shift(const Offset(0, 3)),
-      Paint()
-        ..color = const Color(0x1A6B524C)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      shape.shift(const Offset(0, 4)),
+      Paint()..color = const Color(0x22000000),
     );
-
-    canvas.drawPath(shape, Paint()..color = const Color(0xFFFFF8F2));
-
+    canvas.drawPath(shape, Paint()..color = const Color(0xFFFFFBFE));
     canvas.drawPath(
       shape,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFFE8D0C4),
+        ..strokeWidth = 1.6
+        ..color = const Color(0xFFF4B6C8),
     );
   }
 

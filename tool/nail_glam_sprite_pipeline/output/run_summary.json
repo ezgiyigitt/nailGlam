@@ -1,0 +1,26 @@
+{
+  "frameCount": 92,
+  "fps": 24,
+  "sequence": [
+    "walk_to_door",
+    "door_open",
+    "walk_through_door",
+    "walk_to_chair",
+    "slow_down",
+    "align_to_chair",
+    "sit_down",
+    "seated"
+  ],
+  "planValid": true,
+  "issues": [],
+  "scaleNotes": [
+    "door/identity pixel ratio 0.98 within band",
+    "chair/identity pixel ratio 0.76",
+    "character clears doorway with headroom"
+  ],
+  "stripJobs": 23,
+  "outputDir": "C:\\Users\\Ezgi\\Documents\\GitHub\\nailGlam\\tool\\nail_glam_sprite_pipeline\\output",
+  "sheet": null,
+  "identity": "C:\\Users\\Ezgi\\Documents\\GitHub\\nailGlam\\assets\\images\\character_look.png",
+  "policy": "no_old_walk_sprites_as_motion_reference"
+}
