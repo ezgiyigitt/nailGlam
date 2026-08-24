@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nail_glam/game/config/asset_paths.dart';
 import 'package:nail_glam/game/nail_glam_game.dart';
+import 'package:nail_glam/game/placeholder_art.dart';
 
 void main() {
   testWidgets('Pixel 8 portrait fills the canvas without letterboxing', (
@@ -15,6 +16,7 @@ void main() {
     final game = NailGlamGame();
     await tester.runAsync(() async {
       await game.images.loadAll(AssetPaths.all);
+      await PlaceholderArt.primeCache(game.images);
     });
 
     await tester.pumpWidget(

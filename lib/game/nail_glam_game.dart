@@ -1,5 +1,6 @@
 import 'package:flame/components.dart';
 import 'package:flame/camera.dart';
+import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 
@@ -8,17 +9,20 @@ import '../ui/arrival_controls_overlay.dart';
 import '../ui/customer_thought_bubble_overlay.dart';
 import '../ui/home_overlay.dart';
 import '../ui/nail_care_overlay.dart';
+import 'audio/game_audio.dart';
 import 'camera_director.dart';
 import 'components/salon_scene.dart';
+import 'config/customer_roster.dart';
 import 'config/game_config.dart';
 import 'nail_care_controller.dart';
+import 'progress/player_progress.dart';
 
 /// Stages of the Part 1 loop.
 enum GamePhase {
-  /// Title screen is up, the salon idles behind it.
+  /// Title screen is up, the salon idles behind it and can be browsed.
   home,
 
-  /// Door opening and customer walking to the chair.
+  /// Customer walking in from the back of the room towards the desk.
   arriving,
 
   /// Sit animation is playing.
@@ -34,7 +38,7 @@ enum GamePhase {
   workspace,
 }
 
-class NailGlamGame extends FlameGame {
+class NailGlamGame extends FlameGame with PanDetector {
   NailGlamGame._(World world)
     : super(
         world: world,
@@ -51,6 +55,9 @@ class NailGlamGame extends FlameGame {
   late final SalonScene scene;
   late final CameraDirector director;
   late final NailCareController nailCare;
+  PlayerProgress progress = PlayerProgress.memory();
+  CustomerProfile guest = CustomerRoster.customer1;
+  int _visitIndex = 0;
 
   GamePhase phase = GamePhase.home;
 
@@ -89,7 +96,6 @@ class NailGlamGame extends FlameGame {
     director = CameraDirector();
     await add(director);
 
-    scene.customer.onClearedDoorway = _onCustomerClearedDoorway;
     scene.customer.onStartedSitting = _onCustomerStartedSitting;
     scene.customer.onSeated = _onCustomerSeated;
     scene.customer.onHandsOnTable = _onHandsOnTable;
@@ -97,9 +103,24 @@ class NailGlamGame extends FlameGame {
     nailCare = NailCareController(
       workspace: scene.workspace,
       onRequestPinkyZoom: _beginPinkyPage,
+      onRequestRingZoom: _beginRingPage,
       onRequestFinish: _onNailCareFinished,
+      progressOf: () => progress,
     );
     await add(nailCare);
+
+    progress.addListener(_syncSalonFurniture);
+    await scene.applyEquippedFurniture(progress);
+  }
+
+  void _syncSalonFurniture() {
+    scene.applyEquippedFurniture(progress);
+  }
+
+  @override
+  void onRemove() {
+    progress.removeListener(_syncSalonFurniture);
+    super.onRemove();
   }
 
   /// Runs the whole arrival beat from the top. Safe to call from any phase, so
@@ -116,11 +137,51 @@ class NailGlamGame extends FlameGame {
 
     scene.reset();
     nailCare.reset();
-    director.snapTo(Vector2(GameConfig.cameraHomeX, GameConfig.sceneCenterY));
+    director.snapTo(GameConfig.cameraStationFocus);
+
+    guest = CustomerRoster.forVisit(_visitIndex);
+    _visitIndex += 1;
 
     phase = GamePhase.arriving;
-    director.follow(scene.customer);
-    scene.door.open(onComplete: scene.customer.enterSalon);
+    scene.customer.enterSalon();
+    GameAudio.instance.arrive();
+  }
+
+  /// The salon can only be browsed while nothing scripted is playing.
+  bool get canBrowseSalon => phase == GamePhase.home;
+
+  @override
+  void onPanStart(DragStartInfo info) {
+    if (!canBrowseSalon) {
+      return;
+    }
+    director.beginPan();
+  }
+
+  @override
+  void onPanUpdate(DragUpdateInfo info) {
+    if (!canBrowseSalon) {
+      return;
+    }
+    director.panBy(_toWorldDx(info.delta.global.x));
+  }
+
+  @override
+  void onPanEnd(DragEndInfo info) {
+    if (!canBrowseSalon) {
+      return;
+    }
+    director.endPan(_toWorldDx(info.velocity.x));
+  }
+
+  /// Screen pixels are not world units: the viewport letter-boxes the design
+  /// resolution and the camera can be zoomed.
+  double _toWorldDx(double screenDx) {
+    if (size.x <= 0) {
+      return 0;
+    }
+    final viewportScale = camera.viewport.virtualSize.x / size.x;
+    return screenDx * viewportScale / camera.viewfinder.zoom;
   }
 
   /// Pauses only the Flame simulation. Flutter overlays remain interactive so
@@ -146,12 +207,8 @@ class NailGlamGame extends FlameGame {
     overlays.remove(NailCareOverlay.id);
     scene.reset();
     nailCare.reset();
-    director.snapTo(Vector2(GameConfig.cameraHomeX, GameConfig.sceneCenterY));
+    director.snapTo(GameConfig.cameraStationFocus);
     overlays.add(HomeOverlay.id);
-  }
-
-  void _onCustomerClearedDoorway() {
-    scene.door.close();
   }
 
   void _onCustomerStartedSitting() {
@@ -209,7 +266,20 @@ class NailGlamGame extends FlameGame {
     );
   }
 
+  void _beginRingPage() {
+    scene.workspace.showRingNail();
+    director.focusOn(
+      GameConfig.cameraNailcareFocus,
+      zoom: GameConfig.cameraNailcareZoom,
+      speed: GameConfig.cameraPinkyZoomSpeed,
+      onSettled: nailCare.beginNailBuffering,
+    );
+  }
+
   void _onNailCareFinished() {
+    progress.addCoins(nailCare.coins);
+    progress.markCustomerFinished();
+    progress.claimPlayBonus();
     overlays.remove(NailCareOverlay.id);
     overlays.add(ArrivalCompleteOverlay.id);
   }

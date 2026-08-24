@@ -5,6 +5,7 @@ import 'package:nail_glam/game/components/customer_component.dart';
 import 'package:nail_glam/game/config/asset_paths.dart';
 import 'package:nail_glam/game/config/game_config.dart';
 import 'package:nail_glam/game/nail_glam_game.dart';
+import 'package:nail_glam/game/placeholder_art.dart';
 import 'package:nail_glam/ui/arrival_complete_overlay.dart';
 import 'package:nail_glam/ui/arrival_controls_overlay.dart';
 import 'package:nail_glam/ui/customer_thought_bubble_overlay.dart';
@@ -26,6 +27,7 @@ void main() {
       // resolves straight from memory once the widget is mounted.
       await tester.runAsync(() async {
         await game.images.loadAll(AssetPaths.all);
+        await PlaceholderArt.primeCache(game.images);
       });
 
       await tester.pumpWidget(
@@ -50,6 +52,7 @@ void main() {
                       (BuildContext context, NailGlamGame game) =>
                           CustomerThoughtBubbleOverlay(
                             onComplete: game.completeCustomerDialogue,
+                            guest: game.guest,
                           ),
                   NailCareOverlay.id: (BuildContext context, NailGlamGame game) =>
                       NailCareOverlay(game: game),
@@ -65,11 +68,12 @@ void main() {
       game.startArrival();
 
       const frame = Duration(milliseconds: 16);
-      const groundBand = 1.0;
+      const band = GameConfig.customerBobAmplitude + 1;
 
-      double? previousGround;
-      double largestGroundStep = 0;
+      double? previousBase;
+      double largestBaseStep = 0;
       var sawWalking = false;
+      var sawTurning = false;
       var sawSitting = false;
       var sawSeatedIdle = false;
       var sittingEntries = 0;
@@ -87,6 +91,7 @@ void main() {
         }
 
         sawWalking |= customer.phase == CustomerPhase.walking;
+        sawTurning |= customer.phase == CustomerPhase.turning;
         sawSitting |= customer.phase == CustomerPhase.sitting;
         sawSeatedIdle |= customer.phase == CustomerPhase.seatedIdle;
 
@@ -96,16 +101,21 @@ void main() {
         }
         previousPhase = customer.phase;
 
-        if (customer.phase == CustomerPhase.sitting ||
+        if (customer.phase == CustomerPhase.turning ||
+            customer.phase == CustomerPhase.sitting ||
             customer.phase == CustomerPhase.seatedIdle ||
             customer.phase == CustomerPhase.handsToTable) {
           lockedSeatX ??= customer.position.x;
-          lockedSeatY ??= customer.position.y;
           expect(
             customer.position.x,
             closeTo(lockedSeatX, 0.001),
             reason: 'world x moved after the sit transition on frame $i',
           );
+        }
+        if (customer.phase == CustomerPhase.sitting ||
+            customer.phase == CustomerPhase.seatedIdle ||
+            customer.phase == CustomerPhase.handsToTable) {
+          lockedSeatY ??= customer.position.y;
           expect(
             customer.position.y,
             closeTo(lockedSeatY, 0.001),
@@ -114,28 +124,31 @@ void main() {
         }
 
         if (customer.phase == CustomerPhase.seatedIdle && !completedDialogue) {
+          expect(find.byKey(const Key('guest-nameplate')), findsOneWidget);
+          expect(find.text('Lila'), findsOneWidget);
           completedDialogue = true;
           game.completeCustomerDialogue();
         }
 
-        final ground = customer.groundY;
+        final base = customer.baseY;
 
         expect(
-          ground,
+          base,
           inInclusiveRange(
-            GameConfig.customerFarGroundY - groundBand,
-            GameConfig.customerNearGroundY + groundBand,
+            GameConfig.customerBottomY - band,
+            GameConfig.customerBottomY + GameConfig.customerSitDrop + band,
           ),
-          reason: 'feet left the floor plane on frame $i',
+          reason: 'she left the walk line on frame $i',
         );
 
-        if (previousGround != null) {
-          final step = (ground - previousGround).abs();
-          if (step > largestGroundStep) {
-            largestGroundStep = step;
+        if (previousBase != null &&
+            customer.phase == CustomerPhase.walking) {
+          final step = (base - previousBase).abs();
+          if (step > largestBaseStep) {
+            largestBaseStep = step;
           }
         }
-        previousGround = ground;
+        previousBase = base;
 
         if (game.phase == GamePhase.workspace) {
           break;
@@ -152,7 +165,10 @@ void main() {
         );
         expect(
           game.scene.customer.position.y,
-          closeTo(GameConfig.customerNearGroundY, 0.001),
+          closeTo(
+            GameConfig.customerTopY + GameConfig.customerSitDrop,
+            0.001,
+          ),
           reason: 'seated idle changed world y',
         );
         if (game.overlays.isActive(NailCareOverlay.id) &&
@@ -161,10 +177,11 @@ void main() {
         }
       }
 
-      expect(sawWalking, isTrue, reason: 'she never started walking');
-      expect(sawSitting, isTrue, reason: 'the sit animation never played');
+      expect(sawWalking, isTrue, reason: 'she never started walking in');
+      expect(sawTurning, isTrue, reason: 'she never turned towards the desk');
+      expect(sawSitting, isTrue, reason: 'the sit beat never played');
       expect(sawSeatedIdle, isTrue, reason: 'seated idle never started');
-      expect(sittingEntries, 1, reason: 'sit animation started more than once');
+      expect(sittingEntries, 1, reason: 'sit beat started more than once');
       expect(game.phase, GamePhase.workspace);
       expect(game.scene.customer.phase, CustomerPhase.handsToTable);
       expect(
@@ -178,12 +195,12 @@ void main() {
         reason: 'seat must stay on the table knee well',
       );
 
-      // A single frame of walking moves her ground line by well under 2 units;
-      // anything larger means an animation swap teleported her.
+      // Only the walk bob moves her vertically; a much larger step means a
+      // sprite swap teleported her.
       expect(
-        largestGroundStep,
-        lessThan(2.0),
-        reason: 'feet jumped between frames',
+        largestBaseStep,
+        lessThan(6.0),
+        reason: 'she jumped between frames',
       );
 
       expect(
@@ -216,6 +233,7 @@ void main() {
 
       await tester.runAsync(() async {
         await game.images.loadAll(AssetPaths.all);
+        await PlaceholderArt.primeCache(game.images);
       });
 
       await tester.pumpWidget(
@@ -240,6 +258,7 @@ void main() {
                       (BuildContext context, NailGlamGame game) =>
                           CustomerThoughtBubbleOverlay(
                             onComplete: game.completeCustomerDialogue,
+                            guest: game.guest,
                           ),
                   NailCareOverlay.id: (BuildContext context, NailGlamGame game) =>
                       NailCareOverlay(game: game),
@@ -262,30 +281,38 @@ void main() {
         }
       }
       expect(game.scene.customer.phase, CustomerPhase.seatedIdle);
-      expect(game.scene.customer.playing, isFalse);
+      expect(
+        game.scene.customer.position.x,
+        closeTo(GameConfig.customerSeatX, 0.001),
+      );
 
-      // Second arrival must walk with the animation ticker advancing again.
+      // Second arrival must restart from off-screen and walk in again.
       game.startArrival();
-      var sawWalkFrameAdvance = false;
-      var previousIndex = -1;
+      expect(game.scene.customer.phase, CustomerPhase.walking);
+      expect(
+        game.scene.customer.position.x,
+        closeTo(GameConfig.customerEntryX, 0.001),
+        reason: 'replay did not send her back to the start',
+      );
+
+      var sawForwardTravel = false;
+      var previousX = game.scene.customer.position.x;
       for (var i = 0; i < 200; i++) {
         await tester.pump(frame);
         final customer = game.scene.customer;
         if (customer.phase != CustomerPhase.walking) {
           continue;
         }
-        expect(customer.playing, isTrue, reason: 'walk must be playing on replay');
-        final index = customer.animationTicker?.currentIndex ?? -1;
-        if (previousIndex >= 0 && index != previousIndex) {
-          sawWalkFrameAdvance = true;
+        if (customer.position.x > previousX + 0.01) {
+          sawForwardTravel = true;
           break;
         }
-        previousIndex = index;
+        previousX = customer.position.x;
       }
       expect(
-        sawWalkFrameAdvance,
+        sawForwardTravel,
         isTrue,
-        reason: 'second arrival never advanced walk frames',
+        reason: 'second arrival never moved towards the desk',
       );
     },
   );

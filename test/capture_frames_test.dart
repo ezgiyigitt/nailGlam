@@ -3,10 +3,12 @@ import 'dart:ui';
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nail_glam/game/components/customer_component.dart';
 import 'package:nail_glam/game/config/asset_paths.dart';
 import 'package:nail_glam/game/nail_glam_game.dart';
+import 'package:nail_glam/game/placeholder_art.dart';
 import 'package:nail_glam/ui/arrival_complete_overlay.dart';
 import 'package:nail_glam/ui/arrival_controls_overlay.dart';
 import 'package:nail_glam/ui/customer_thought_bubble_overlay.dart';
@@ -16,6 +18,52 @@ import 'package:nail_glam/ui/nail_care_overlay.dart';
 /// Development helper: renders key beats of the arrival to PNGs so the scene
 /// composition can be eyeballed without launching a device.
 void main() {
+  testWidgets('capture home menu', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    const boundaryKey = Key('home-capture');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: boundaryKey,
+          child: HomeOverlay(onPlay: () {}),
+        ),
+      ),
+    );
+    await tester.runAsync(() async {
+      final context = tester.element(find.byKey(boundaryKey));
+      await precacheImage(
+        AssetImage('assets/images/${AssetPaths.menuBackground}'),
+        context,
+      );
+      await precacheImage(
+        AssetImage('assets/images/${AssetPaths.menuLogo}'),
+        context,
+      );
+      await precacheImage(
+        AssetImage('assets/images/${AssetPaths.menuStart}'),
+        context,
+      );
+      await precacheImage(
+        AssetImage('assets/images/${AssetPaths.menuHowToPlay}'),
+        context,
+      );
+    });
+    await tester.pumpAndSettle();
+
+    final boundary =
+        tester.renderObject(find.byKey(boundaryKey)) as RenderRepaintBoundary;
+    await tester.runAsync(() async {
+      final image = await boundary.toImage();
+      final bytes = await image.toByteData(format: ImageByteFormat.png);
+      Directory('build/screens').createSync(recursive: true);
+      File('build/screens/00_home.png')
+          .writeAsBytesSync(bytes!.buffer.asUint8List());
+    });
+  });
+
   testWidgets('capture arrival beats', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 1920);
     tester.view.devicePixelRatio = 1.0;
@@ -24,6 +72,7 @@ void main() {
     final game = NailGlamGame();
     await tester.runAsync(() async {
       await game.images.loadAll(AssetPaths.all);
+      await PlaceholderArt.primeCache(game.images);
     });
 
     await tester.pumpWidget(
@@ -48,6 +97,7 @@ void main() {
                     (BuildContext context, NailGlamGame game) =>
                         CustomerThoughtBubbleOverlay(
                           onComplete: game.completeCustomerDialogue,
+                          guest: game.guest,
                         ),
                 NailCareOverlay.id: (BuildContext context, NailGlamGame game) =>
                     NailCareOverlay(game: game),
@@ -77,34 +127,23 @@ void main() {
 
     game.startArrival();
 
-    // Door swinging open with the customer fading in behind it.
+    // Fading in at the back of the room.
     for (var i = 0; i < 30; i++) {
       await tester.pump(frame);
     }
-    await capture('01_door_open');
+    await capture('01_entering');
 
-    // Mid walk, door closing behind her, foreground plant should overlap.
-    for (var i = 0; i < 70; i++) {
+    // Mid approach: bigger, closer, still short of the desk.
+    for (var i = 0; i < 60; i++) {
       await tester.pump(frame);
     }
-    await capture('02_walking');
+    await capture('02_approaching');
 
-    // Extra walk samples so gait (contact/pass/contact/pass) can be eyeballed.
-    for (var sample = 0; sample < 4; sample++) {
-      for (var i = 0; i < 8; i++) {
-        await tester.pump(frame);
-      }
-      if (game.scene.customer.phase != CustomerPhase.walking) {
-        break;
-      }
-      await capture('02b_walk_$sample');
-    }
-
-    // Approaching the chair at full perspective scale.
+    // Pivoting from profile towards the desk.
     while (game.scene.customer.phase == CustomerPhase.walking) {
       await tester.pump(frame);
     }
-    await capture('03_reaching_chair');
+    await capture('03_turning');
 
     // Seated idle before the camera moves.
     while (game.scene.customer.phase != CustomerPhase.seatedIdle) {
@@ -112,19 +151,15 @@ void main() {
     }
     await capture('04_seated');
 
-    // Second arrival must walk again (regression for playing=false bug).
+    // Second arrival must replay the approach from the back of the room.
     game.startArrival();
-    for (var i = 0; i < 80; i++) {
+    for (var i = 0; i < 40; i++) {
       await tester.pump(frame);
     }
     expect(game.scene.customer.phase, CustomerPhase.walking);
-    expect(game.scene.customer.playing, isTrue);
     await capture('06_replay_walking');
 
-    // Resume first-run seating path for the remaining captures.
-    while (game.scene.customer.phase == CustomerPhase.walking) {
-      await tester.pump(frame);
-    }
+    // Resume the seating path for the remaining captures.
     while (game.scene.customer.phase != CustomerPhase.seatedIdle) {
       await tester.pump(frame);
     }
@@ -138,5 +173,78 @@ void main() {
       await tester.pump(frame);
     }
     await capture('05_workspace');
+  });
+
+  testWidgets('capture nail-care hud', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1080, 1920);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final game = NailGlamGame();
+    await tester.runAsync(() async {
+      await game.images.loadAll(AssetPaths.all);
+      await PlaceholderArt.primeCache(game.images);
+    });
+
+    const boundaryKey = Key('workspace-hud-capture');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RepaintBoundary(
+          key: boundaryKey,
+          child: GameWidget<NailGlamGame>(
+            game: game,
+            overlayBuilderMap:
+                <String, Widget Function(BuildContext, NailGlamGame)>{
+                  HomeOverlay.id: (BuildContext context, NailGlamGame game) =>
+                      HomeOverlay(onPlay: game.startArrival),
+                  ArrivalCompleteOverlay.id:
+                      (BuildContext context, NailGlamGame game) =>
+                          ArrivalCompleteOverlay(onReplay: game.startArrival),
+                  ArrivalControlsOverlay.id:
+                      (BuildContext context, NailGlamGame game) =>
+                          ArrivalControlsOverlay(
+                            onTogglePause: game.togglePause,
+                            onHome: game.returnToHome,
+                          ),
+                  CustomerThoughtBubbleOverlay.id:
+                      (BuildContext context, NailGlamGame game) =>
+                          CustomerThoughtBubbleOverlay(
+                            onComplete: game.completeCustomerDialogue,
+                          guest: game.guest,
+                          ),
+                  NailCareOverlay.id:
+                      (BuildContext context, NailGlamGame game) =>
+                          NailCareOverlay(game: game),
+                },
+          ),
+        ),
+      ),
+    );
+    for (var i = 0; i < 5 && !game.isLoaded; i++) {
+      await tester.pump();
+    }
+
+    game.debugOpenNailCare();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    Future<void> saveHud(String name) async {
+      final boundary =
+          tester.renderObject(find.byKey(boundaryKey)) as RenderRepaintBoundary;
+      await tester.runAsync(() async {
+        final image = await boundary.toImage();
+        final bytes = await image.toByteData(format: ImageByteFormat.png);
+        Directory('build/screens').createSync(recursive: true);
+        File('build/screens/$name.png')
+            .writeAsBytesSync(bytes!.buffer.asUint8List());
+      });
+    }
+
+    await saveHud('07_nail_care_hud');
+
+    game.scene.workspace.showPinkyNail();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await saveHud('08_pinky_closeup');
   });
 }

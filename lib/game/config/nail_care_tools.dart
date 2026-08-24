@@ -1,19 +1,24 @@
 import 'asset_paths.dart';
 
 /// Discrete steps of the manicure minigame that follows the salon arrival.
+enum NailDigit { pinky, ring }
+
 enum NailCareStage {
   inactive,
   handCleaning,
   handCleaningCompleted,
   pinkyFingerFocus,
+  ringFingerFocus,
   nailSpraying,
   nailBuffering,
   nailBufferingCompleted,
   nailCutting,
   nailCuttingCompleted,
+  nailPolishing,
+  nailPolishingCompleted,
 }
 
-enum NailCareToolId { handSoap, nailSpray, nailBuffer, nailClips }
+enum NailCareToolId { handSoap, nailSpray, nailBuffer, nailClips, nailPolish }
 
 enum NailCareInteraction { dragOntoTarget }
 
@@ -61,7 +66,7 @@ abstract final class NailCareCatalog {
     ),
     NailCareTool(
       id: NailCareToolId.nailBuffer,
-      name: 'Nail Buffer',
+      name: 'Nail Wipe',
       iconPath: AssetPaths.nailBuffer,
       hint: 'Drag onto nail',
       requiredStage: NailCareStage.nailBuffering,
@@ -73,6 +78,14 @@ abstract final class NailCareCatalog {
       iconPath: AssetPaths.nailClips,
       hint: 'Clip the nail',
       requiredStage: NailCareStage.nailCutting,
+      interaction: NailCareInteraction.dragOntoTarget,
+    ),
+    NailCareTool(
+      id: NailCareToolId.nailPolish,
+      name: 'Nail Brush',
+      iconPath: AssetPaths.polishBrush,
+      hint: 'Paint the nail',
+      requiredStage: NailCareStage.nailPolishing,
       interaction: NailCareInteraction.dragOntoTarget,
     ),
   ];
@@ -99,6 +112,8 @@ class NailCareInventoryItem {
     required this.name,
     required this.iconPath,
     required this.unlocked,
+    this.unlockPrice = 0,
+    this.polishColor = 0,
   });
 
   final String id;
@@ -106,6 +121,8 @@ class NailCareInventoryItem {
   final String name;
   final String iconPath;
   final bool unlocked;
+  final int unlockPrice;
+  final int polishColor;
 }
 
 /// Soap and buffer kits shown as 8-slot drawers. Slot 0 is owned.
@@ -181,56 +198,56 @@ abstract final class NailCareInventory {
     NailCareInventoryItem(
       id: 'buffer-0',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Nail Buffer',
+      name: 'Nail Wipe',
       iconPath: AssetPaths.nailBuffer,
       unlocked: true,
     ),
     NailCareInventoryItem(
       id: 'buffer-1',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Buffer 2',
+      name: 'Wipe 2',
       iconPath: AssetPaths.nailBuffer,
       unlocked: false,
     ),
     NailCareInventoryItem(
       id: 'buffer-2',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Buffer 3',
+      name: 'Wipe 3',
       iconPath: AssetPaths.nailBuffer,
       unlocked: false,
     ),
     NailCareInventoryItem(
       id: 'buffer-3',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Buffer 4',
+      name: 'Wipe 4',
       iconPath: AssetPaths.nailBuffer,
       unlocked: false,
     ),
     NailCareInventoryItem(
       id: 'buffer-4',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Buffer 5',
+      name: 'Wipe 5',
       iconPath: AssetPaths.nailBuffer,
       unlocked: false,
     ),
     NailCareInventoryItem(
       id: 'buffer-5',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Buffer 6',
+      name: 'Wipe 6',
       iconPath: AssetPaths.nailBuffer,
       unlocked: false,
     ),
     NailCareInventoryItem(
       id: 'buffer-6',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Buffer 7',
+      name: 'Wipe 7',
       iconPath: AssetPaths.nailBuffer,
       unlocked: false,
     ),
     NailCareInventoryItem(
       id: 'buffer-7',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Buffer 8',
+      name: 'Wipe 8',
       iconPath: AssetPaths.nailBuffer,
       unlocked: false,
     ),
@@ -301,6 +318,112 @@ abstract final class NailCareInventory {
     ...buffers,
   ];
 
+  static const List<NailCareInventoryItem> polishes = <NailCareInventoryItem>[
+    NailCareInventoryItem(
+      id: 'polish-blush',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Blush Pink',
+      iconPath: AssetPaths.polishBlush,
+      unlocked: true,
+      polishColor: 0xFFFF6BA8,
+    ),
+    NailCareInventoryItem(
+      id: 'polish-red',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Cherry Red',
+      iconPath: AssetPaths.polishRed,
+      unlocked: false,
+      unlockPrice: 40,
+      polishColor: 0xFFD0123A,
+    ),
+    NailCareInventoryItem(
+      id: 'polish-nude',
+      toolId: NailCareToolId.nailPolish,
+      name: 'French Nude',
+      iconPath: AssetPaths.polishNude,
+      unlocked: false,
+      unlockPrice: 55,
+      polishColor: 0xFFE6B8A2,
+    ),
+    NailCareInventoryItem(
+      id: 'polish-pearl',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Pearl',
+      iconPath: AssetPaths.polishPearl,
+      unlocked: false,
+      unlockPrice: 70,
+      polishColor: 0xFFF4E4EC,
+    ),
+    NailCareInventoryItem(
+      id: 'polish-gold',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Gold Glitter',
+      iconPath: AssetPaths.polishGold,
+      unlocked: false,
+      unlockPrice: 90,
+      polishColor: 0xFFD4A017,
+    ),
+  ];
+
+  static const List<NailCareInventoryItem> brushes = <NailCareInventoryItem>[
+    NailCareInventoryItem(
+      id: 'brush-0',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Nail Brush',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: true,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-1',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 2',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-2',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 3',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-3',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 4',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-4',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 5',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-5',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 6',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-6',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 7',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-7',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 8',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+  ];
+
   static List<NailCareInventoryItem> itemsFor(NailCareStage stage) {
     switch (stage) {
       case NailCareStage.handCleaning:
@@ -313,8 +436,12 @@ abstract final class NailCareInventory {
       case NailCareStage.nailCutting:
       case NailCareStage.nailCuttingCompleted:
         return clips;
+      case NailCareStage.nailPolishing:
+      case NailCareStage.nailPolishingCompleted:
+        return brushes;
       case NailCareStage.inactive:
       case NailCareStage.pinkyFingerFocus:
+      case NailCareStage.ringFingerFocus:
         return const <NailCareInventoryItem>[];
     }
   }
@@ -331,8 +458,12 @@ abstract final class NailCareInventory {
       case NailCareStage.nailCutting:
       case NailCareStage.nailCuttingCompleted:
         return 'Clips';
+      case NailCareStage.nailPolishing:
+      case NailCareStage.nailPolishingCompleted:
+        return 'Brushes';
       case NailCareStage.inactive:
       case NailCareStage.pinkyFingerFocus:
+      case NailCareStage.ringFingerFocus:
         return '';
     }
   }

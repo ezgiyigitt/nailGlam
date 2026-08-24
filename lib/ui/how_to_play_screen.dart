@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../game/audio/game_audio.dart';
 import '../game/config/asset_paths.dart';
 
 class HowToPlayScreen extends StatelessWidget {
@@ -28,7 +29,12 @@ class HowToPlayScreen extends StatelessWidget {
               children: <Widget>[
                 Align(
                   alignment: Alignment.topLeft,
-                  child: _BackButton(onPressed: () => Navigator.pop(context)),
+                  child: _BackButton(
+                    onPressed: () {
+                      GameAudio.instance.tap();
+                      Navigator.pop(context);
+                    },
+                  ),
                 ),
                 const Spacer(),
                 ConstrainedBox(

@@ -13,162 +13,127 @@ abstract final class GameConfig {
   static const double viewWidth = 1080;
   static const double viewHeight = 1920;
 
-  /// The salon is wider than the viewport so the camera has room to travel
-  /// from the entrance to the manicure table.
-  /// Extra world space lets tall phones and wider tablets reveal more of the
-  /// salon instead of showing letterbox bars around a fixed 9:16 canvas.
-  static const double worldWidth = 3600;
-  static const double worldHeight = 2400;
+  /// The salon is a single wide room. It is wider than the viewport so the
+  /// player can swipe sideways to browse it and, in later levels, fill the
+  /// extra space with furniture they have bought.
+  static const double worldWidth = 3240;
+
+  /// Matches the viewport exactly: the room never scrolls vertically.
+  static const double worldHeight = viewHeight;
 
   /// Vertical composition centre of the original 1080×1920 artwork.
   static const double sceneCenterY = viewHeight / 2;
-
-  /// Where the back wall meets the floor.
-  static const double horizonY = 980;
-
-  // ---------------------------------------------------------------------
-  // Depth layers
-  // ---------------------------------------------------------------------
-
-  /// How strongly a layer tracks the camera. 1.0 is locked to the world,
-  /// below 1.0 drifts behind (looks distant), above 1.0 races ahead (looks
-  /// close to the lens). Kept gentle on purpose: this should read as depth,
-  /// not as a scrolling shooter.
-  static const double wallParallax = 0.82;
-  static const double floorParallax = 0.94;
-  static const double sceneryParallax = 1.0;
-  static const double foregroundParallax = 1.16;
-  static const double foregroundFarParallax = 1.09;
-
-  static const double wallWidth = 4000;
-  static const double wallBottomY = 1000;
-  static const double floorTopY = 960;
-  static const double floorWidth = 4000;
 
   // ---------------------------------------------------------------------
   // Render order
   // ---------------------------------------------------------------------
 
-  static const int priorityWall = 0;
-  /// Fills the doorway opening so an open door never reads as a hole in the
-  /// scene. Replaced by real exterior art when that asset lands.
-  static const int priorityDoorBackdrop = 5;
-  static const int priorityFloor = 10;
-  static const int priorityDoorLeaf = 18;
-  static const int priorityDoorFrame = 20;
+  static const int priorityRoom = 0;
   static const int priorityChair = 30;
   static const int priorityShadow = 35;
   static const int priorityCustomer = 40;
-  /// Full table body (legs, apron, drawers) sits in front of the customer so she
-  /// reads as seated behind the manicure table instead of clipped through it.
-  static const int priorityTableBase = 45;
-  /// Perspective tabletop pass drawn above the body for a clean work surface.
+
+  /// The manicure desk is the nearest thing to the lens, so the customer's
+  /// cropped waist and her forearms disappear behind it.
   static const int priorityTable = 50;
-  static const int priorityForeground = 90;
+
   /// Full nail-care plate that takes over once the camera has pushed in.
   static const int priorityWorkspace = 100;
 
   // ---------------------------------------------------------------------
-  // Scenery placement (x is the object's centre, y is where it meets the floor)
+  // Room
   // ---------------------------------------------------------------------
 
-  static const double doorX = 500;
-  static const double doorFrameHeight = 1280;
-  static const double doorLeafHeight = 1020;
+  /// Room art is stretched across the whole world and fills the viewport
+  /// height, so a horizontal swipe reveals more room and never empty space.
+  static const double roomWidth = worldWidth;
+  static const double roomHeight = viewHeight;
 
-  /// Left inner jamb of the arch, where the new door's gold hinges sit.
-  static const double doorLeafHingeOffsetX = -208;
+  // ---------------------------------------------------------------------
+  // Manicure station
+  // ---------------------------------------------------------------------
 
-  /// Leaf lifts slightly so it sits in the arch, not on the planter pots.
-  static const double doorLeafLiftY = 42;
+  /// Centre of the working station: desk, customer and the nail-care close-up
+  /// all line up here, so the camera move reads as a straight push in.
+  static const double stationX = worldWidth / 2;
 
-  /// How far the leaf collapses when fully open. Swinging a flat sprite looks
-  /// wrong in a 2.5D scene, so the leaf compresses towards the hinge instead.
-  static const double doorOpenScaleX = 0.14;
+  /// Full salon width. The delivered desk is a free-standing object with
+  /// visible corners; stretching it across the world is what keeps wood on
+  /// every camera x, from the left edge of the frame to the right.
+  static const double tableWidth = worldWidth;
+  static const double tableHeight = 920;
 
-  /// Doorway opening as a fraction of the frame sprite, measured against the
-  /// art so the backdrop lands inside the moulding instead of over it.
-  static const double doorOpeningWidthFactor = 0.49;
-  static const double doorOpeningHeightFactor = 0.80;
+  /// Bottom-anchored on the very bottom edge of the frame.
+  static const double tableBottomY = viewHeight;
+  static double get tableTopY => tableBottomY - tableHeight;
 
-  /// Empty manicure chair, already in the salon behind the desk.
-  static const double chairX = customerSeatX;
-  static const double chairHeight = 620;
-  static const double chairArtOffsetX = -78;
+  /// World y of the wooden desktop in the delivered table art. Flowers sit
+  /// above this; everything below is the desk. 380/1001 is the first solid
+  /// wood row in `nail_table.png`.
+  static const double tableWoodY = 1000 + 342;
 
-  /// Slightly further from the lens than the desk so she sits behind it.
-  static const double chairGroundY = customerNearGroundY - 8;
+  /// Pink quilted armrest sitting on the salon desktop, station centre.
+  static const double salonPillowWidth = 720;
+  static const double salonPillowHeight = 210;
+  static const double salonPillowCenterY = tableWoodY + 96;
 
-  /// 3/4 desk. Open (near) side is left; the top recedes to the right.
-  static const double tableX = 1940;
-  static const double tableHeight = 640;
+  // ---------------------------------------------------------------------
+  // Chair
+  // ---------------------------------------------------------------------
 
-  /// Closer to the camera than the chair, so the desk reads in front.
-  static const double tableGroundY = customerNearGroundY + 72;
-
-  static const double plantNearX = 260;
-  static const double plantNearHeight = 1423;
-
-  /// Pulled up inside the 1920-tall viewport. At 1985 the planter base and its
-  /// shadow fell below the bottom edge, so the plant read as hovering simply
-  /// because the point where it met the floor was never on screen.
-  static const double plantNearBottomY = 1860;
-
-  /// Contact shadows for the planters. Without them a bottom-anchored sprite on
-  /// a flat floor reads as hovering, however correct its placement is.
-  static const double plantNearShadowWidth = 470;
-  static const double plantNearShadowHeight = 112;
-  static const double plantFarShadowWidth = 240;
-  static const double plantFarShadowHeight = 58;
-  static const double plantShadowStrength = 0.72;
-
-  /// Sits just off the right edge of the workspace framing so it adds a hint of
-  /// foreground depth without growing into the shot the camera pushes in on.
-  static const double plantFarX = 2580;
-  static const double plantFarHeight = 700;
-  static const double plantFarBottomY = 1790;
+  /// The chair stands behind the customer at the station. Most of it is buried
+  /// behind the desk; what reads on screen is a short padded back around her
+  /// mid-torso, not a fan that towers over her head.
+  static const double chairHeight = 940;
+  static const double chairBottomY = 2140;
+  static const double chairX = stationX - 20;
 
   // ---------------------------------------------------------------------
   // Customer
   // ---------------------------------------------------------------------
 
-  /// The customer walks along a shallow diagonal: she starts further back near
-  /// the door and ends closer to the lens at the chair. Combined with the
-  /// scale ramp below this is what sells the depth without a 3D camera.
-  static const double customerFarGroundY = 1270;
-  static const double customerNearGroundY = 1660;
-  static const double customerFarScale = 0.74;
-  static const double customerNearScale = 1.0;
+  /// Every pose is packed onto one cell with her head in the same place, so a
+  /// single size and a single top edge drive walking, turning and sitting
+  /// alike. Anchoring at the top is what keeps her head from bouncing when the
+  /// sprite swaps.
+  /// Tall enough that the waist crop reaches behind the wooden desktop. A
+  /// shorter sprite left a gap between her blouse and the table.
+  static const double customerHeight = 980;
 
-  static const double customerStartX = doorX;
+  /// Head stays in the upper third of the station shot. Depth comes from
+  /// [customerHeight], not from sliding her down the frame.
+  static const double customerTopY = 620;
 
-  /// Open (near-left) side of the angled desk, over the waiting chair.
-  static const double customerSeatOffsetX = -200;
-  static const double customerSeatX = tableX + customerSeatOffsetX;
+  /// Front/sit art is cropped shorter under the head than the walk profile.
+  /// This extra drop lines her blouse hem up with the desktop.
+  static const double customerSitDrop = 70;
 
-  /// Cruise speed. She eases down as the remaining distance shrinks.
-  static const double customerWalkSpeed = 200;
-  static const double customerWalkEndSpeed = 78;
-  static const double walkSlowdownDistance = 340;
+  /// Bottom of the sprite cell. The art is cropped at the waist, so this is a
+  /// composition line rather than a foot position.
+  static const double customerBottomY = customerTopY + customerHeight;
 
-  /// Distance past the door after which the leaf swings shut behind her.
-  static const double doorCloseTriggerDistance = 240;
+  /// She enters in profile from off the left edge of the station shot and
+  /// walks right until she is behind the desk.
+  static const double customerSeatX = stationX - 20;
+  static const double customerEntryX = stationX - 960;
+
+  /// World units per second along the floor.
+  static const double customerWalkSpeed = 430;
+
+  static const double customerWalkFrameTime = 0.15;
+  static const double customerTurnFrameTime = 0.14;
+  static const double customerSitFrameTime = 0.12;
+
+  /// Gentle vertical bob layered on top of the walk cycle.
+  static const double customerBobAmplitude = 9;
+  static const double customerBobSpeed = 7.5;
 
   // ---------------------------------------------------------------------
   // Animation timing
   // ---------------------------------------------------------------------
 
-  /// 4-frame walk cycle ≈ 0.56s.
-  static const double walkFrameTime = 0.14;
-  static const double stopFrameTime = 0.28;
-  static const double turnFrameTime = 0.11;
-  static const double sitFrameTime = 0.10;
-  static const double lookFrameTime = 0.70;
-  static const double sitIdleFrameTime = sitFrameTime;
-  static const double handsToTableFrameTime = sitIdleFrameTime;
-
-  static const double doorOpenDuration = 0.85;
-  static const double doorCloseDuration = 0.95;
+  /// How long she takes to settle after arriving at the desk.
+  static const double customerSettleDuration = 0.5;
 
   /// Beat between the customer settling into the chair and the camera pushing
   /// in on the workspace.
@@ -200,18 +165,26 @@ abstract final class GameConfig {
   static const double cameraSettlePositionEpsilon = 2.5;
   static const double cameraSettleZoomEpsilon = 0.008;
 
-  /// Resting camera x at the start of the scene, and the reference point the
-  /// parallax layers are authored against.
-  static const double cameraHomeX = viewWidth / 2;
+  /// Resting camera x: the station is always the shot the scene opens on.
+  static const double cameraHomeX = stationX;
 
-  /// The camera leads slightly ahead of the customer so she is never pinned to
-  /// the centre of frame while walking.
-  static const double cameraLeadX = 90;
+  /// A swipe should feel pinned to the finger, so it eases far harder than a
+  /// scripted camera move.
+  static const double cameraPanFollowSpeed = 26;
+
+  /// How quickly a flung swipe bleeds off, as a fraction kept per second.
+  static const double cameraPanDamping = 0.06;
+
+  /// Below this the residual swipe velocity is treated as a full stop.
+  static const double cameraPanMinVelocity = 12;
 
   /// Top-down plate centre. Same x as the table so the move reads as a
   /// straight approach with no sideways slide.
   static Vector2 get cameraNailcareFocus =>
-      Vector2(tableX, workspacePlateCenterY);
+      Vector2(stationX, workspacePlateCenterY);
+
+  /// Framing the salon rests at between customers.
+  static Vector2 get cameraStationFocus => Vector2(stationX, sceneCenterY);
 
   // ---------------------------------------------------------------------
   // Nail-care workspace plate
@@ -237,9 +210,15 @@ abstract final class GameConfig {
   static const double workspaceHandShadowStrength = 0.48;
 
   /// Soft velvet pad under the hand, world-local to the plate.
-  static const double workspacePadWidth = 920;
-  static const double workspacePadHeight = 520;
-  static const double workspacePadCenterY = 780;
+  static const double workspacePadWidth = 900;
+  static const double workspacePadHeight = 260;
+  static const double workspacePadCenterY = 820;
+
+  /// Top-down cushion that hides the knuckle crop on the finger close-up.
+  static const double pinkyPillowWidth = 880;
+  static const double pinkyPillowHeight = 280;
+  static const double pinkyPillowCenterY = 560;
+  static const double pinkyStumpFadeEnd = 0.05;
 
   // ---------------------------------------------------------------------
   // Nail-care gameplay
@@ -250,6 +229,7 @@ abstract final class GameConfig {
   static const double nailCareSprayHoldDuration = 1.1;
   static const double nailCareBufferHoldDuration = 1.1;
   static const double nailCareCutHoldDuration = 1.35;
+  static const double nailCarePolishHoldDuration = 1.2;
   static const double nailCareWashDuration =
       nailCareHandWashFrameTime * nailCareHandWashFrameCount;
 
@@ -257,12 +237,13 @@ abstract final class GameConfig {
   static const int nailCareWashCoinReward = 25;
   static const int nailCareBufferCoinReward = 40;
   static const int nailCareCutCoinReward = 35;
+  static const int nailCarePolishCoinReward = 45;
   static const int nailCareAdMultiplier = 2;
 
   /// Local plate position of the pinky close-up sprite.
   static const double pinkySpriteCenterX = workspacePlateWidth / 2;
-  static const double pinkySpriteCenterY = workspacePlateHeight * 0.46;
-  static const double pinkySpriteHeight = 1320;
+  static const double pinkySpriteCenterY = workspacePlateHeight * 0.40;
+  static const double pinkySpriteHeight = 1500;
 
   /// Nail page stays at the same framing as the hand plate so the salon never
   /// peeks around a zoomed crop. Transition is a new full-bleed layout.

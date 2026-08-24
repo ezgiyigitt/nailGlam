@@ -39,6 +39,8 @@ class _AtlasToolImageState extends State<AtlasToolImage> {
         return SpriteAtlas.nailBuffer;
       case NailCareToolId.nailClips:
         return _clamped(SpriteAtlas.nailClips);
+      case NailCareToolId.nailPolish:
+        return _clamped(SpriteAtlas.polishBrush);
     }
   }
 

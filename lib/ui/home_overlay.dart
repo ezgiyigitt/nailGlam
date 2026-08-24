@@ -1,28 +1,80 @@
 import 'package:flutter/material.dart';
 
+import '../game/audio/game_audio.dart';
 import '../game/config/asset_paths.dart';
+import '../game/progress/player_progress.dart';
+import 'daily_reward_sheet.dart';
+import 'gold_coin.dart';
 import 'how_to_play_screen.dart';
+import 'settings_sheet.dart';
+import 'shop_screen.dart';
 
 /// Independent first screen. Gameplay stays hidden until Start is pressed.
 class HomeOverlay extends StatefulWidget {
-  const HomeOverlay({required this.onPlay, super.key});
+  const HomeOverlay({
+    required this.onPlay,
+    this.progress,
+    super.key,
+  });
 
   static const String id = 'home';
 
   final VoidCallback onPlay;
+  final PlayerProgress? progress;
 
   @override
   State<HomeOverlay> createState() => _HomeOverlayState();
 }
 
 class _HomeOverlayState extends State<HomeOverlay> {
-  bool _musicEnabled = true;
+  late final PlayerProgress _progress =
+      widget.progress ?? PlayerProgress.memory();
+  bool _settingsOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      GameAudio.instance.playMusic();
+      if (_progress.store != null && _progress.canClaimLogin) {
+        showDailyRewardSheet(context: context, progress: _progress);
+      }
+    });
+  }
+
+  void _openSettings() {
+    GameAudio.instance.tap();
+    setState(() => _settingsOpen = true);
+  }
+
+  void _closeSettings() {
+    setState(() => _settingsOpen = false);
+  }
+
+  void _openShop() {
+    GameAudio.instance.tap();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ShopScreen(progress: _progress),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFD6E8),
-      body: Stack(
+      backgroundColor: const Color(0xFFFFE4C8),
+      body: GestureDetector(
+        onHorizontalDragEnd: (DragEndDetails details) {
+          if (details.primaryVelocity != null &&
+              details.primaryVelocity! < -240) {
+            _openShop();
+          }
+        },
+        child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
           Image.asset(
@@ -38,9 +90,9 @@ class _HomeOverlayState extends State<HomeOverlay> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: <Color>[
-                  Color(0x22FFFFFF),
-                  Color(0x00FFFFFF),
-                  Color(0x33FFB7D5),
+                  Color(0x14FFFFFF),
+                  Color(0x00000000),
+                  Color(0x550F3D38),
                 ],
                 stops: <double>[0, 0.45, 1],
               ),
@@ -51,19 +103,9 @@ class _HomeOverlayState extends State<HomeOverlay> {
             child: LayoutBuilder(
               builder: (BuildContext context, BoxConstraints constraints) {
                 final compact = constraints.maxHeight < 700;
-                final logoHeight =
-                    (constraints.maxHeight * (compact ? 0.42 : 0.46)).clamp(
-                      220.0,
-                      420.0,
-                    );
-                final startWidth = (constraints.maxWidth * 0.72).clamp(
-                  220.0,
-                  320.0,
-                );
-                final howWidth = (constraints.maxWidth * 0.66).clamp(
-                  200.0,
-                  290.0,
-                );
+                final startWidth = (constraints.maxWidth * (compact ? 0.76 : 0.80))
+                    .clamp(220.0, 360.0);
+                final howWidth = startWidth * 0.88;
 
                 return Column(
                   children: <Widget>[
@@ -72,19 +114,47 @@ class _HomeOverlayState extends State<HomeOverlay> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
+                          AnimatedBuilder(
+                            animation: _progress,
+                            builder: (BuildContext context, _) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: GoldBalanceChip(coins: _progress.coins),
+                              );
+                            },
+                          ),
+                          AnimatedBuilder(
+                            animation: _progress,
+                            builder: (BuildContext context, _) {
+                              if (!_progress.canClaimLogin) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: _MenuIconButton(
+                                  tooltip: 'Daily coins',
+                                  icon: Icons.card_giftcard_rounded,
+                                  onPressed: () {
+                                    GameAudio.instance.tap();
+                                    showDailyRewardSheet(
+                                      context: context,
+                                      progress: _progress,
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ),
                           _MenuIconButton(
-                            tooltip: _musicEnabled ? 'Music on' : 'Music off',
-                            icon: _musicEnabled
-                                ? Icons.music_note_rounded
-                                : Icons.music_off_rounded,
-                            onPressed: () =>
-                                setState(() => _musicEnabled = !_musicEnabled),
+                            tooltip: 'Salon shop',
+                            icon: Icons.storefront_rounded,
+                            onPressed: _openShop,
                           ),
                           const SizedBox(width: 10),
                           _MenuIconButton(
                             tooltip: 'Settings',
                             icon: Icons.settings_rounded,
-                            onPressed: () {},
+                            onPressed: _openSettings,
                           ),
                         ],
                       ),
@@ -93,31 +163,34 @@ class _HomeOverlayState extends State<HomeOverlay> {
                       child: Center(
                         child: Image.asset(
                           'assets/images/${AssetPaths.menuLogo}',
-                          height: logoHeight,
                           fit: BoxFit.contain,
                           filterQuality: FilterQuality.high,
                         ),
                       ),
                     ),
                     SizedBox(height: compact ? 8 : 16),
-                    _GlossyMenuButton(
-                      label: 'START',
+                    _MenuArtButton(
+                      asset: AssetPaths.menuStart,
+                      semanticLabel: 'Start',
                       width: startWidth,
-                      height: compact ? 64 : 72,
-                      primary: true,
-                      onPressed: widget.onPlay,
+                      onPressed: () {
+                        GameAudio.instance.tap();
+                        widget.onPlay();
+                      },
                     ),
-                    SizedBox(height: compact ? 12 : 16),
-                    _GlossyMenuButton(
-                      label: 'HOW TO PLAY',
+                    SizedBox(height: compact ? 8 : 10),
+                    _MenuArtButton(
+                      asset: AssetPaths.menuHowToPlay,
+                      semanticLabel: 'How to play',
                       width: howWidth,
-                      height: compact ? 56 : 62,
-                      primary: false,
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const HowToPlayScreen(),
-                        ),
-                      ),
+                      onPressed: () {
+                        GameAudio.instance.tap();
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const HowToPlayScreen(),
+                          ),
+                        );
+                      },
                     ),
                     SizedBox(height: compact ? 10 : 18),
                   ],
@@ -125,49 +198,52 @@ class _HomeOverlayState extends State<HomeOverlay> {
               },
             ),
           ),
+          if (_settingsOpen) ...<Widget>[
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _closeSettings,
+                child: const ColoredBox(color: Color(0xCC3A1C28)),
+              ),
+            ),
+            Center(
+              child: SettingsDialog(onDone: _closeSettings),
+            ),
+          ],
         ],
+      ),
       ),
     );
   }
 }
 
-/// Bubble-gloss pink CTA that matches the NAIL GLAM logo sticker look.
-class _GlossyMenuButton extends StatefulWidget {
-  const _GlossyMenuButton({
-    required this.label,
+/// Gold-rim pink menu buttons. The label is painted into the PNG.
+class _MenuArtButton extends StatefulWidget {
+  const _MenuArtButton({
+    required this.asset,
+    required this.semanticLabel,
     required this.width,
-    required this.height,
-    required this.primary,
     required this.onPressed,
   });
 
-  final String label;
+  final String asset;
+  final String semanticLabel;
   final double width;
-  final double height;
-  final bool primary;
   final VoidCallback onPressed;
 
   @override
-  State<_GlossyMenuButton> createState() => _GlossyMenuButtonState();
+  State<_MenuArtButton> createState() => _MenuArtButtonState();
 }
 
-class _GlossyMenuButtonState extends State<_GlossyMenuButton> {
+class _MenuArtButtonState extends State<_MenuArtButton> {
   bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final radius = widget.height * 0.48;
-    final cream = _MenuColors.cream;
-    final pink = widget.primary ? _MenuColors.pink : _MenuColors.pinkSoft;
-    final pinkDeep = widget.primary
-        ? _MenuColors.pinkDeep
-        : const Color(0xFFF06A9F);
-
     return Semantics(
       button: true,
-      label: widget.label,
+      label: widget.semanticLabel,
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
         onTapDown: (_) => setState(() => _pressed = true),
         onTapCancel: () => setState(() => _pressed = false),
         onTapUp: (_) {
@@ -178,79 +254,11 @@ class _GlossyMenuButtonState extends State<_GlossyMenuButton> {
           scale: _pressed ? 0.96 : 1,
           duration: const Duration(milliseconds: 90),
           curve: Curves.easeOutCubic,
-          child: Container(
+          child: Image.asset(
+            'assets/images/${widget.asset}',
             width: widget.width,
-            height: widget.height,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(radius),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: const Color(0x55C2185B),
-                  blurRadius: _pressed ? 8 : 16,
-                  offset: Offset(0, _pressed ? 4 : 8),
-                ),
-              ],
-            ),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(radius),
-                border: Border.all(color: cream, width: 5),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: <Color>[
-                    Color.lerp(pink, Colors.white, 0.22)!,
-                    pink,
-                    pinkDeep,
-                  ],
-                  stops: const <double>[0, 0.45, 1],
-                ),
-              ),
-              child: Stack(
-                children: <Widget>[
-                  Positioned(
-                    left: 18,
-                    right: 18,
-                    top: 7,
-                    height: widget.height * 0.34,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(radius),
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: <Color>[
-                            Colors.white.withValues(alpha: 0.55),
-                            Colors.white.withValues(alpha: 0),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: Text(
-                      widget.label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Baloo2',
-                        fontSize: widget.primary ? 30 : 24,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                        height: 1,
-                        color: Colors.white,
-                        shadows: const <Shadow>[
-                          Shadow(
-                            color: Color(0x66B0004F),
-                            blurRadius: 0,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
           ),
         ),
       ),
@@ -260,8 +268,6 @@ class _GlossyMenuButtonState extends State<_GlossyMenuButton> {
 
 abstract final class _MenuColors {
   static const Color pink = Color(0xFFFF6BA8);
-  static const Color pinkSoft = Color(0xFFFF85B8);
-  static const Color pinkDeep = Color(0xFFE84F8F);
   static const Color cream = Color(0xFFFFF6F0);
 }
 

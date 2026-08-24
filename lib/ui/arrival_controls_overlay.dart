@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../game/audio/game_audio.dart';
 import '../game/config/game_config.dart';
 
 /// Lightweight controls shown while the customer arrival scene is active.
@@ -44,6 +45,7 @@ class _ArrivalControlsOverlayState extends State<ArrivalControlsOverlay> {
                       : Icons.pause_rounded,
                   color: const Color(0xFFFF80AD),
                   onPressed: () {
+                    GameAudio.instance.tap();
                     final paused = widget.onTogglePause();
                     setState(() => _paused = paused);
                   },
@@ -53,7 +55,10 @@ class _ArrivalControlsOverlayState extends State<ArrivalControlsOverlay> {
                   tooltip: 'Ana sayfa',
                   icon: Icons.home_rounded,
                   color: const Color(0xFF9F83EE),
-                  onPressed: widget.onHome,
+                  onPressed: () {
+                    GameAudio.instance.tap();
+                    widget.onHome();
+                  },
                 ),
               ],
             ),

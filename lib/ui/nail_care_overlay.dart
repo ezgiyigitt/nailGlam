@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../game/config/game_config.dart';
 import '../game/config/nail_care_tools.dart';
+import '../game/nail_care_controller.dart';
 import '../game/nail_glam_game.dart';
 import 'atlas_tool_image.dart';
 import 'confetti_burst.dart';
 import 'customer_emotion_avatar.dart';
+import 'flying_coins.dart';
+import 'gold_coin.dart';
 
 /// Gameplay HUD for the manicure plate: kit drawer, drop target, and Next.
 class NailCareOverlay extends StatelessWidget {
@@ -35,22 +38,123 @@ class NailCareOverlay extends StatelessWidget {
   }
 }
 
-class _NailCareHud extends StatelessWidget {
+class _NailCareHud extends StatefulWidget {
   const _NailCareHud({required this.game, required this.size});
 
   final NailGlamGame game;
   final Size size;
 
   @override
+  State<_NailCareHud> createState() => _NailCareHudState();
+}
+
+class _NailCareHudState extends State<_NailCareHud> {
+  final GlobalKey _walletKey = GlobalKey();
+
+  int _flightId = 0;
+  int _flightAmount = 0;
+  int _flightFrom = 0;
+  Offset _flightOrigin = Offset.zero;
+  bool _flying = false;
+  int _shownCoins = 0;
+  int _walletBump = 0;
+  int _seenBurst = 0;
+
+  NailGlamGame get game => widget.game;
+  Size get size => widget.size;
+
+  @override
+  void initState() {
+    super.initState();
+    _shownCoins = game.nailCare.coins;
+    _seenBurst = game.nailCare.coinBurstGeneration;
+    game.nailCare.addListener(_onCareChanged);
+  }
+
+  @override
+  void dispose() {
+    game.nailCare.removeListener(_onCareChanged);
+    super.dispose();
+  }
+
+  void _onCareChanged() {
+    if (!mounted) {
+      return;
+    }
+    final care = game.nailCare;
+    if (care.coinBurstGeneration == _seenBurst || care.coinBurstAmount <= 0) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || care.coinBurstGeneration == _seenBurst) {
+        return;
+      }
+      _seenBurst = care.coinBurstGeneration;
+      setState(() {
+        _flying = true;
+        _flightAmount = care.coinBurstAmount;
+        _flightFrom = (care.coins - care.coinBurstAmount).clamp(0, care.coins);
+        _flightOrigin = Offset(size.width / 2, size.height * 0.48);
+        _flightId = care.coinBurstGeneration;
+        _shownCoins = _flightFrom;
+      });
+    });
+  }
+
+  Offset _localCenter(GlobalKey key, Offset fallback) {
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
+    final parent = context.findRenderObject() as RenderBox?;
+    if (box == null || parent == null || !box.hasSize || !parent.hasSize) {
+      return fallback;
+    }
+    return parent.globalToLocal(
+      box.localToGlobal(box.size.center(Offset.zero)),
+    );
+  }
+
+  void _onCoinArrived(int index) {
+    if (!_flying) {
+      return;
+    }
+    final count = _spriteCount(_flightAmount);
+    final gained = ((index + 1) * _flightAmount / count).round();
+    setState(() {
+      _shownCoins = (_flightFrom + gained).clamp(
+        _flightFrom,
+        _flightFrom + _flightAmount,
+      );
+      _walletBump += 1;
+    });
+  }
+
+  void _onFlightDone() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _flying = false;
+      _shownCoins = game.nailCare.coins;
+    });
+  }
+
+  static int _spriteCount(int amount) {
+    return (amount / 5).round().clamp(8, 14);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final care = game.nailCare;
     final stage = care.stage;
     final usingNail =
+        stage == NailCareStage.pinkyFingerFocus ||
+        stage == NailCareStage.ringFingerFocus ||
         stage == NailCareStage.nailSpraying ||
         stage == NailCareStage.nailBuffering ||
         stage == NailCareStage.nailBufferingCompleted ||
         stage == NailCareStage.nailCutting ||
-        stage == NailCareStage.nailCuttingCompleted;
+        stage == NailCareStage.nailCuttingCompleted ||
+        stage == NailCareStage.nailPolishing ||
+        stage == NailCareStage.nailPolishingCompleted;
     final target = usingNail
         ? _targetRect(
             size,
@@ -105,17 +209,29 @@ class _NailCareHud extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.only(top: GameConfig.hudPad),
                 child: SizedBox(
-                  height: 96,
+                  height: 124,
                   child: Stack(
-                    alignment: Alignment.center,
+                    alignment: Alignment.topCenter,
                     children: <Widget>[
-                      CustomerEmotionAvatar(
-                        key: const Key('nail-care-emotion'),
-                        frame: care.emotionFrame,
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          CustomerEmotionAvatar(
+                            key: const Key('nail-care-emotion'),
+                            game: game,
+                            frame: care.emotionFrame,
+                          ),
+                          const SizedBox(height: 6),
+                          _GuestNameChip(name: game.guest.name),
+                        ],
                       ),
                       Align(
                         alignment: Alignment.centerRight,
-                        child: _CoinChip(coins: care.coins),
+                        child: GoldBalanceChip(
+                          key: _walletKey,
+                          coins: _flying ? _shownCoins : care.coins,
+                          bump: _walletBump,
+                        ),
                       ),
                     ],
                   ),
@@ -135,13 +251,13 @@ class _NailCareHud extends StatelessWidget {
               onTap: care.toggleInventory,
             ),
           ),
-        if (_cueFor(stage) != null && care.actionProgress <= 0)
+        if (_cueFor(care) != null && care.actionProgress <= 0)
           Positioned(
             left: 28,
             right: 28,
-            top: 118,
+            top: 148,
             child: IgnorePointer(
-              child: _StageCue(text: _cueFor(stage)!),
+              child: _StageCue(text: _cueFor(care)!),
             ),
           ),
         if (care.showsSelectedTool && selected != null)
@@ -181,11 +297,11 @@ class _NailCareHud extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   if (_showsProgress(stage)) ...<Widget>[
-                    const Align(
+                    Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Clean',
-                        style: TextStyle(
+                        _progressLabel(stage),
+                        style: const TextStyle(
                           fontFamily: NailCareOverlay._displayFont,
                           fontSize: 18,
                           height: 1,
@@ -208,17 +324,22 @@ class _NailCareHud extends StatelessWidget {
             ),
           ),
         ),
-        if (care.rewardOpen)
-          Positioned.fill(
-            child: _RewardSheet(
-              coins: care.pendingCoins,
-              adUsed: care.adBonusApplied,
-              onCollect: care.collectReward,
-              onWatchAd: care.watchAd,
-            ),
-          ),
         Positioned.fill(
           child: ConfettiBurst(generation: care.confettiGeneration),
+        ),
+        Positioned.fill(
+          child: FlyingCoins(
+            key: const Key('nail-care-flying-coins'),
+            generation: _flightId,
+            origin: _flightOrigin,
+            count: _spriteCount(_flightAmount),
+            targetOf: () => _localCenter(
+              _walletKey,
+              Offset(size.width - 52, 52),
+            ),
+            onCoinArrived: _onCoinArrived,
+            onComplete: _onFlightDone,
+          ),
         ),
       ],
     );
@@ -227,27 +348,56 @@ class _NailCareHud extends StatelessWidget {
   static bool _showsProgress(NailCareStage stage) {
     return stage == NailCareStage.handCleaning ||
         stage == NailCareStage.handCleaningCompleted ||
+        stage == NailCareStage.pinkyFingerFocus ||
+        stage == NailCareStage.ringFingerFocus ||
         stage == NailCareStage.nailSpraying ||
         stage == NailCareStage.nailBuffering ||
         stage == NailCareStage.nailBufferingCompleted ||
         stage == NailCareStage.nailCutting ||
-        stage == NailCareStage.nailCuttingCompleted;
+        stage == NailCareStage.nailCuttingCompleted ||
+        stage == NailCareStage.nailPolishing ||
+        stage == NailCareStage.nailPolishingCompleted;
   }
 
-  static String? _cueFor(NailCareStage stage) {
-    switch (stage) {
+  static String _progressLabel(NailCareStage stage) {
+    if (stage == NailCareStage.nailPolishing ||
+        stage == NailCareStage.nailPolishingCompleted) {
+      return 'Polish';
+    }
+    return 'Clean';
+  }
+
+  static String? _cueFor(NailCareController care) {
+    final ring = care.digit == NailDigit.ring;
+    switch (care.stage) {
       case NailCareStage.handCleaning:
         return 'Open SOAPS and drag soap onto the hand';
+      case NailCareStage.ringFingerFocus:
+        return 'Now the RING FINGER';
       case NailCareStage.nailSpraying:
-        return 'Spray the pinky nail to loosen grime';
+        return ring
+            ? 'Spray the ring finger to loosen grime'
+            : 'Spray the pinky nail to loosen grime';
       case NailCareStage.nailBuffering:
-        return 'Buff the pinky until it shines';
+        return ring
+            ? 'Wipe the ring finger until it shines'
+            : 'Wipe the pinky until it shines';
       case NailCareStage.nailCutting:
-        return 'Open CLIPS and clip the pinky nail';
+        return ring
+            ? 'Open CLIPS and clip the ring finger'
+            : 'Open CLIPS and clip the pinky nail';
+      case NailCareStage.nailPolishing:
+        return ring
+            ? 'Open BRUSHES and paint the ring finger'
+            : 'Open BRUSHES and paint the nail';
       case NailCareStage.handCleaningCompleted:
       case NailCareStage.nailBufferingCompleted:
       case NailCareStage.nailCuttingCompleted:
         return 'Nice! Tap NEXT to keep going';
+      case NailCareStage.nailPolishingCompleted:
+        return ring
+            ? 'Nice! Tap NEXT to finish'
+            : 'Nice! Next up: the ring finger';
       case NailCareStage.inactive:
       case NailCareStage.pinkyFingerFocus:
         return null;
@@ -382,42 +532,31 @@ class _ProgressBar extends StatelessWidget {
   }
 }
 
-class _CoinChip extends StatelessWidget {
-  const _CoinChip({required this.coins});
+class _GuestNameChip extends StatelessWidget {
+  const _GuestNameChip({required this.name});
 
-  final int coins;
+  final String name;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      key: const Key('nail-care-wallet'),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      key: const Key('nail-care-guest-name'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
         color: const Color(0xF2FFF6EE),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white, width: 2),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const Icon(
-            Icons.monetization_on_rounded,
-            color: Color(0xFFE8B931),
-            size: 20,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '$coins',
-            style: const TextStyle(
-              fontFamily: NailCareOverlay._displayFont,
-              fontSize: 22,
-              height: 1,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF6B524C),
-              decoration: TextDecoration.none,
-            ),
-          ),
-        ],
+      child: Text(
+        name,
+        style: const TextStyle(
+          fontFamily: NailCareOverlay._displayFont,
+          fontSize: 14,
+          height: 1.1,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF7A3D5C),
+          decoration: TextDecoration.none,
+        ),
       ),
     );
   }
@@ -458,6 +597,8 @@ class _KitDrawer extends StatelessWidget {
               children: <Widget>[
                 Text(
                   label.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: NailCareOverlay._uiFont,
                     fontSize: 13,
@@ -577,9 +718,11 @@ class _InventoryPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
-              'Pick the one you own',
-              style: TextStyle(
+            Text(
+              items.any((NailCareInventoryItem item) => item.unlockPrice > 0)
+                  ? 'Tap a color. Locked shades cost coins.'
+                  : 'Pick the one you own',
+              style: const TextStyle(
                 fontFamily: NailCareOverlay._uiFont,
                 fontSize: 13,
                 color: Color(0xFF6E5360),
@@ -590,8 +733,8 @@ class _InventoryPanel extends StatelessWidget {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: items.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: items.length <= 5 ? 3 : 4,
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
                 childAspectRatio: 0.78,
@@ -602,6 +745,7 @@ class _InventoryPanel extends StatelessWidget {
                   game: game,
                   item: item,
                   selected: selectedId == item.id,
+                  owned: game.nailCare.ownsKitItem(item),
                   onTap: () => onSelect(item.id),
                 );
               },
@@ -618,12 +762,14 @@ class _InventorySlot extends StatelessWidget {
     required this.game,
     required this.item,
     required this.selected,
+    required this.owned,
     required this.onTap,
   });
 
   final NailGlamGame game;
   final NailCareInventoryItem item;
   final bool selected;
+  final bool owned;
   final VoidCallback onTap;
 
   @override
@@ -649,7 +795,7 @@ class _InventorySlot extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(4),
                   child: FittedBox(
-                    child: item.unlocked
+                    child: owned
                         ? AtlasToolImage(
                             game: game,
                             toolId: item.toolId,
@@ -673,14 +819,37 @@ class _InventorySlot extends StatelessWidget {
                   ),
                 ),
               ),
-              if (!item.unlocked)
-                const Positioned.fill(
+              if (!owned)
+                Positioned.fill(
                   child: ColoredBox(
-                    color: Color(0x66FFFFFF),
-                    child: Icon(
-                      Icons.lock_rounded,
-                      color: Color(0xFF6E5360),
-                      size: 22,
+                    color: const Color(0x66FFFFFF),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        const Icon(
+                          Icons.lock_rounded,
+                          color: Color(0xFF6E5360),
+                          size: 22,
+                        ),
+                        if (item.unlockPrice > 0)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              const GoldCoin(size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${item.unlockPrice}',
+                                style: const TextStyle(
+                                  fontFamily: NailCareOverlay._uiFont,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF6E5360),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -701,17 +870,18 @@ class _SelectedToolChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tool = NailCareCatalog.toolById(item.toolId);
+    final compact = item.toolId == NailCareToolId.nailPolish;
     final icon = AtlasToolImage(
       game: game,
       toolId: item.toolId,
       iconPath: item.iconPath,
-      width: 72,
+      width: compact ? 36 : 72,
     );
     final ghost = AtlasToolImage(
       game: game,
       toolId: item.toolId,
       iconPath: item.iconPath,
-      width: 84,
+      width: compact ? 42 : 84,
     );
 
     return Material(
@@ -760,143 +930,6 @@ class _SelectedToolChip extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RewardSheet extends StatelessWidget {
-  const _RewardSheet({
-    required this.coins,
-    required this.adUsed,
-    required this.onCollect,
-    required this.onWatchAd,
-  });
-
-  final int coins;
-  final bool adUsed;
-  final VoidCallback onCollect;
-  final VoidCallback onWatchAd;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: const Color(0x66000000),
-      child: Center(
-        child: Material(
-          color: const Color(0xF7FFF8FC),
-          borderRadius: BorderRadius.circular(32),
-          elevation: 20,
-          child: Container(
-            key: const Key('nail-care-reward'),
-            width: 320,
-            padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(32),
-              border: Border.all(color: Colors.white, width: 3),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                const Text(
-                  'Tebrikler!',
-                  style: TextStyle(
-                    fontFamily: NailCareOverlay._displayFont,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF9B4C91),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'You earned coins',
-                  style: TextStyle(
-                    fontFamily: NailCareOverlay._uiFont,
-                    fontSize: 14,
-                    color: Color(0xFF6E5360),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    const Icon(
-                      Icons.monetization_on_rounded,
-                      color: Color(0xFFE8B931),
-                      size: 36,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '+$coins',
-                      key: const Key('nail-care-pending-coins'),
-                      style: const TextStyle(
-                        fontFamily: NailCareOverlay._displayFont,
-                        fontSize: 34,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF6B524C),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 22),
-                _RewardButton(
-                  key: const Key('nail-care-collect-reward'),
-                  label: 'Ödülleri topla',
-                  color: const Color(0xFFE56B97),
-                  onPressed: onCollect,
-                ),
-                const SizedBox(height: 10),
-                _RewardButton(
-                  key: const Key('nail-care-watch-ad'),
-                  label: adUsed ? 'Bonus eklendi' : 'Reklam izle',
-                  color: adUsed ? const Color(0xFFC4A4B0) : const Color(0xFF9F83EE),
-                  onPressed: adUsed ? null : onWatchAd,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RewardButton extends StatelessWidget {
-  const _RewardButton({
-    required this.label,
-    required this.color,
-    required this.onPressed,
-    super.key,
-  });
-
-  final String label;
-  final Color color;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Material(
-        color: color,
-        borderRadius: BorderRadius.circular(28),
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(28),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: NailCareOverlay._displayFont,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ),
         ),
       ),
     );

@@ -5,11 +5,16 @@ import 'package:flutter/material.dart';
 /// Part 2 replaces this with the manicure tools; for now it exists so the
 /// arrival loop can be replayed without restarting the app.
 class ArrivalCompleteOverlay extends StatelessWidget {
-  const ArrivalCompleteOverlay({required this.onReplay, super.key});
+  const ArrivalCompleteOverlay({
+    required this.onReplay,
+    this.guestName = '',
+    super.key,
+  });
 
   static const String id = 'arrivalComplete';
 
   final VoidCallback onReplay;
+  final String guestName;
 
   @override
   Widget build(BuildContext context) {
@@ -24,16 +29,22 @@ class ArrivalCompleteOverlay extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(28),
               onTap: onReplay,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Icon(Icons.refresh_rounded, size: 20, color: Colors.white),
-                    SizedBox(width: 10),
+                    const Icon(
+                      Icons.refresh_rounded,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 10),
                     Text(
-                      'Next customer',
-                      style: TextStyle(
+                      guestName.isEmpty
+                          ? 'Next customer'
+                          : 'Next customer  ·  $guestName loved it',
+                      style: const TextStyle(
                         fontSize: 16,
                         letterSpacing: 1,
                         color: Colors.white,

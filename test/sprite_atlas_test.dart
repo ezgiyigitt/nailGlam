@@ -1,75 +1,26 @@
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nail_glam/game/config/game_config.dart';
 import 'package:nail_glam/game/config/sprite_atlas.dart';
 
 void main() {
-  group('character sheets', () {
-    final sheets = <String, (CharacterSheet, Vector2, int)>{
-      'walk': (SpriteAtlas.customerWalk, Vector2(1544, 841), 4),
-      'stop': (SpriteAtlas.customerStop, Vector2(271, 934), 1),
-      'turn': (SpriteAtlas.customerTurn, Vector2(1120, 941), 4),
-      'sit': (SpriteAtlas.customerSit, Vector2(1492, 879), 4),
-      'look': (SpriteAtlas.customerLook, Vector2(1024, 1536), 1),
-      'emotion': (SpriteAtlas.customerEmotion, Vector2(2350, 587), 5),
-    };
-
-    sheets.forEach((String name, (CharacterSheet, Vector2, int) spec) {
-      final (sheet, imageSize, expectedFrames) = spec;
-
-      test('$name has $expectedFrames frames', () {
-        expect(sheet.frameCount, expectedFrames);
-      });
-
-      test('$name frames stay inside the source image', () {
-        for (var i = 0; i < sheet.frameCount; i++) {
-          final origin = sheet.framePositions[i];
-          expect(origin.x, greaterThanOrEqualTo(0), reason: 'frame $i left');
-          expect(origin.y, greaterThanOrEqualTo(0), reason: 'frame $i top');
-          expect(
-            origin.x + sheet.frameSize.x,
-            lessThanOrEqualTo(imageSize.x + 0.5),
-            reason: 'frame $i right edge',
-          );
-          expect(
-            origin.y + sheet.frameSize.y,
-            lessThanOrEqualTo(imageSize.y + 0.5),
-            reason: 'frame $i bottom edge',
-          );
-        }
-      });
-    });
-
-    test('walk playback reads the 4x1 pipeline walk sheet', () {
-      final walk = SpriteAtlas.customerWalk;
-      const cellW = 386.0;
-      const cellH = 841.0;
-      expect(walk.frameCount, 4);
-      for (var i = 0; i < walk.frameCount; i++) {
-        final origin = walk.framePositions[i];
-        expect(origin.x, closeTo(i * cellW, 0.01));
-        expect(origin.y, 0);
-        expect(origin.x + walk.frameSize.x, lessThanOrEqualTo(4 * cellW + 0.5));
-        expect(origin.y + walk.frameSize.y, lessThanOrEqualTo(cellH + 0.5));
-      }
-    });
-
-    test('each frame has a non-negative measured foot padding', () {
-      for (final sheet in sheets.values.map((spec) => spec.$1)) {
-        expect(sheet.footPaddings, hasLength(sheet.frameCount));
-        expect(sheet.footPaddings.every((padding) => padding >= 0), isTrue);
-      }
+  group('nail-care sheets', () {
+    test('hand wash cells lock to the first pose', () {
+      expect(SpriteAtlas.handWashFrameAlign, hasLength(4));
+      expect(SpriteAtlas.handWashFrameAlign[0], Vector2.zero());
+      expect(SpriteAtlas.handWashFrameAlign[1].x + 237, 245);
+      expect(SpriteAtlas.handWashFrameAlign[2].x + 224, 245);
+      expect(SpriteAtlas.handWashFrameAlign[3].x + 217, 245);
     });
 
     test('hand wash sheet is four even cells', () {
       final sheet = SpriteAtlas.handWash;
       expect(sheet.frameCount, 4);
-      expect(sheet.frameSize, Vector2(543, 724));
+      expect(sheet.frameSize, Vector2(512, 682));
       for (var i = 0; i < sheet.frameCount; i++) {
-        expect(sheet.framePositions[i].x, i * 543);
+        expect(sheet.framePositions[i].x, i * 512);
         expect(
           sheet.framePositions[i].x + sheet.frameSize.x,
-          lessThanOrEqualTo(2172),
+          lessThanOrEqualTo(2048),
         );
       }
     });
@@ -81,6 +32,38 @@ void main() {
         expect(origin.x + sheet.frameSize.x, lessThanOrEqualTo(1672));
         expect(origin.y + sheet.frameSize.y, lessThanOrEqualTo(941));
       }
+    });
+
+    test('short nail lock keeps the long tip on the last clean tip', () {
+      expect(SpriteAtlas.shortNailAlign.x + 166, 113);
+      expect(SpriteAtlas.shortNailAlign.y + 836, 866);
+    });
+
+    test('fourth nail clean windows stay inside the source image', () {
+      final sheet = SpriteAtlas.fourthNail;
+      expect(sheet.frameCount, 4);
+      expect(sheet.frameSize, Vector2(355, 758));
+      for (final origin in sheet.framePositions) {
+        expect(origin.x + sheet.frameSize.x, lessThanOrEqualTo(1942));
+        expect(origin.y + sheet.frameSize.y, lessThanOrEqualTo(809));
+      }
+      final short = SpriteAtlas.fourthShortNail;
+      expect(short.frameCount, 4);
+      expect(short.frameSize, Vector2(384, 1024));
+      expect(SpriteAtlas.fourthShortNailAlign.x + 191.5, 133);
+      expect(
+        SpriteAtlas.fourthShortNailAlign.y + 974,
+        closeTo(740 * 879 / 758, 0.02),
+      );
+    });
+
+    test('polish plates sit on the clipped short cells', () {
+      expect(SpriteAtlas.pinkNailPlate.position.x + SpriteAtlas.pinkNailPlate.size.x, lessThanOrEqualTo(384));
+      expect(SpriteAtlas.pinkNailPlate.position.y + SpriteAtlas.pinkNailPlate.size.y, lessThanOrEqualTo(1024));
+      expect(SpriteAtlas.ringNailPlate.position.x + SpriteAtlas.ringNailPlate.size.x, lessThanOrEqualTo(384));
+      expect(SpriteAtlas.ringNailPlate.position.y + SpriteAtlas.ringNailPlate.size.y, lessThanOrEqualTo(1024));
+      expect(SpriteAtlas.pinkNailPlate.size.x, greaterThan(170));
+      expect(SpriteAtlas.ringNailPlate.size.x, greaterThan(170));
     });
 
     test('short nail sheet is four even cells', () {
@@ -96,13 +79,5 @@ void main() {
         );
       }
     });
-  });
-
-  test('seated layout keeps the customer behind the angled desk', () {
-    expect(GameConfig.customerSeatX, lessThan(GameConfig.tableX));
-    expect(GameConfig.chairX, GameConfig.customerSeatX);
-    expect(GameConfig.chairGroundY, lessThan(GameConfig.tableGroundY));
-    expect(GameConfig.priorityChair, lessThan(GameConfig.priorityCustomer));
-    expect(GameConfig.priorityCustomer, lessThan(GameConfig.priorityTable));
   });
 }

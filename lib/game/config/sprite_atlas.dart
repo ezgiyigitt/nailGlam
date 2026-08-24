@@ -1,111 +1,34 @@
 import 'package:flame/components.dart';
 
 /// Source rectangles for every sprite, measured from the delivered art.
+///
+/// The salon room, the manicure desk and the customer are whole images rather
+/// than atlas windows, so replacement art of any size drops straight in.
 abstract final class SpriteAtlas {
-  /// 1544×841, 4×1 walk from pipeline (identity-locked, not old walk sheet).
-  static final CharacterSheet customerWalk = CharacterSheet(
-    frameSize: Vector2(386, 841),
-    displayScale: 1.32,
-    footPaddings: const <double>[24, 24, 24, 24],
-    framePositions: <Vector2>[
-      for (var i = 0; i < 4; i++) Vector2(i * 386.0, 0),
-    ],
-  );
-
-  /// Balanced stand — first turn pose.
-  static final CharacterSheet customerStop = CharacterSheet(
-    frameSize: Vector2(271, 934),
-    displayScale: 1.19,
-    footPaddings: const <double>[24],
-    framePositions: <Vector2>[Vector2.zero()],
-  );
-
-  /// 1120×941, 4×1 turn toward chair/camera.
-  static final CharacterSheet customerTurn = CharacterSheet(
-    frameSize: Vector2(280, 941),
-    displayScale: 1.18,
-    footPaddings: const <double>[22, 22, 22, 22],
-    framePositions: <Vector2>[
-      for (var i = 0; i < 4; i++) Vector2(i * 280.0, 0),
-    ],
-  );
-
-  /// 1492×879, 4×1 sit-down. Chair is a separate world prop.
-  static final CharacterSheet customerSit = CharacterSheet(
-    frameSize: Vector2(373, 879),
-    displayScale: 1.26,
-    footPaddings: const <double>[22, 22, 22, 22],
-    framePositions: <Vector2>[
-      for (var i = 0; i < 4; i++) Vector2(i * 373.0, 0),
-    ],
-  );
-
-  /// Single standing look / dirty-hands beat.
-  static final CharacterSheet customerLook = CharacterSheet(
-    frameSize: Vector2(612, 1519),
-    displayScale: 0.52,
-    footPaddings: const <double>[10],
-    framePositions: <Vector2>[Vector2(221, 7)],
-  );
-
-  /// 2350×587, 5×1 face reactions. UI only. Even isolated cells.
-  static final CharacterSheet customerEmotion = CharacterSheet(
-    frameSize: Vector2(470, 587),
-    displayScale: 1,
-    footPaddings: const <double>[12, 12, 12, 12, 12],
-    framePositions: <Vector2>[
-      for (var i = 0; i < 5; i++) Vector2(i * 470.0, 0),
-    ],
-  );
-
-  static final SpriteRegion wall = SpriteRegion(
-    Vector2(0, 143),
-    Vector2(1024, 360),
-  );
-  static final SpriteRegion floor = SpriteRegion(
-    Vector2.zero(),
-    Vector2(1024, 657),
-  );
-  static final SpriteRegion doorFrame = SpriteRegion(
-    Vector2(1, 5),
-    Vector2(1028, 1454),
-  );
-  static final SpriteRegion doorLeaf = SpriteRegion(
-    Vector2(221, 17),
-    Vector2(580, 1496),
-  );
-  static final SpriteRegion nailTable = SpriteRegion(
-    Vector2.zero(),
-    Vector2(1440, 1006),
-  );
-  static final SpriteRegion salonChair = SpriteRegion(
-    Vector2.zero(),
-    Vector2(894, 1186),
-  );
-  static final SpriteRegion plant = SpriteRegion(
-    Vector2(55, 66),
-    Vector2(449, 918),
-  );
-
-  /// 2172×724, 4×1 wash stages. Even cells so the hand does not slide.
-  /// [contentCenterOffsets] lock dirty→clean dissolve to one pose.
+  /// 2048×682, 4×1 even wash stages. Consecutive cells crossfade in game.
   static final CharacterSheet handWash = CharacterSheet(
-    frameSize: Vector2(543, 724),
+    frameSize: Vector2(512, 682),
     displayScale: 1,
     footPaddings: const <double>[0, 0, 0, 0],
     framePositions: <Vector2>[
-      Vector2(0, 0),
-      Vector2(543, 0),
-      Vector2(1086, 0),
-      Vector2(1629, 0),
+      for (var i = 0; i < 4; i++) Vector2(i * 512.0, 0),
     ],
     contentCenterOffsets: <Vector2>[
-      Vector2(13.73, -23.21),
-      Vector2(3.01, -23.83),
-      Vector2(-10.52, -23.82),
-      Vector2(-19.19, -22.94),
+      Vector2.zero(),
+      Vector2.zero(),
+      Vector2.zero(),
+      Vector2.zero(),
     ],
   );
+
+  /// Pixel shift applied when drawing each wash cell so the hand stays on
+  /// cell 0. Measured from the middle fingertip (cell 0 at x=245).
+  static final List<Vector2> handWashFrameAlign = <Vector2>[
+    Vector2.zero(),
+    Vector2(8, 0),
+    Vector2(21, 0),
+    Vector2(28, 0),
+  ];
 
   static final CharacterSheet fifthNailClean = CharacterSheet(
     frameSize: Vector2(355, 879),
@@ -125,7 +48,13 @@ abstract final class SpriteAtlas {
     ],
   );
 
-  /// 1536×1024, 4×1 left-to-right clip stages. Even cells; offsets lock pose.
+  /// Shift applied to [shortNail] after it is drawn at the clean-sheet scale,
+  /// so the long tip of frame 0 sits on [fifthNailClean] frame 3's tip.
+  /// Source pixels: clean tip (113, 866) − short tip (166, 836).
+  static final Vector2 shortNailAlign = Vector2(-53, 30);
+
+  /// 1536×1024, 4×1 left-to-right clip stages. Even cells; the art is already
+  /// registered on the cuticle, so frames are not centroid-shifted in game.
   static final CharacterSheet shortNail = CharacterSheet(
     frameSize: Vector2(384, 1024),
     displayScale: 1,
@@ -138,6 +67,49 @@ abstract final class SpriteAtlas {
       Vector2(-3.39, -187.81),
       Vector2(-4.60, -207.17),
       Vector2(-4.97, -210.60),
+    ],
+  );
+
+  /// 1942×809, 4 dirty→clean stages. Windows start on each finger's
+  /// opaque left edge; height is the tallest fingertip (frame 0).
+  static final CharacterSheet fourthNail = CharacterSheet(
+    frameSize: Vector2(355, 758),
+    displayScale: 1,
+    footPaddings: const <double>[0, 0, 0, 0],
+    framePositions: <Vector2>[
+      Vector2(55, 0),
+      Vector2(565, 0),
+      Vector2(1045, 0),
+      Vector2(1549, 0),
+    ],
+    contentCenterOffsets: <Vector2>[
+      Vector2.zero(),
+      Vector2.zero(),
+      Vector2.zero(),
+      Vector2.zero(),
+    ],
+  );
+
+  /// Source pixels in the pinky slot (355×879): stretched fourth-nail
+  /// frame 3 tip (133, 740/758×879) − fourth short tip (191.5, 974).
+  static final Vector2 fourthShortNailAlign = Vector2(
+    -58.5,
+    740.0 * 879 / 758 - 974,
+  );
+
+  /// 1536×1024, 4×1 even ring-finger clip stages.
+  static final CharacterSheet fourthShortNail = CharacterSheet(
+    frameSize: Vector2(384, 1024),
+    displayScale: 1,
+    footPaddings: const <double>[0, 0, 0, 0],
+    framePositions: <Vector2>[
+      for (var i = 0; i < 4; i++) Vector2(i * 384.0, 0),
+    ],
+    contentCenterOffsets: <Vector2>[
+      Vector2.zero(),
+      Vector2.zero(),
+      Vector2.zero(),
+      Vector2.zero(),
     ],
   );
 
@@ -156,6 +128,23 @@ abstract final class SpriteAtlas {
   static final SpriteRegion nailClips = SpriteRegion(
     Vector2(181, 14),
     Vector2(1293, 889),
+  );
+  /// Brush head and ferrule only — the full stick is 1300px tall.
+  static final SpriteRegion polishBrush = SpriteRegion(
+    Vector2(0, 0),
+    Vector2(139, 300),
+  );
+
+  /// Clipped pinky plate inside the 384×1024 polish mask.
+  static final SpriteRegion pinkNailPlate = SpriteRegion(
+    Vector2(87, 311),
+    Vector2(191, 318),
+  );
+
+  /// Clipped ring plate inside the 384×1024 polish mask.
+  static final SpriteRegion ringNailPlate = SpriteRegion(
+    Vector2(95, 307),
+    Vector2(196, 331),
   );
 }
 

@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
 
 import 'package:flame/flame.dart';
@@ -5,7 +6,9 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import 'game/audio/game_audio.dart';
 import 'game/nail_glam_game.dart';
+import 'game/progress/player_progress.dart';
 import 'ui/arrival_complete_overlay.dart';
 import 'ui/arrival_controls_overlay.dart';
 import 'ui/customer_thought_bubble_overlay.dart';
@@ -22,6 +25,9 @@ Future<void> main() async {
     await Flame.device.setPortrait();
   }
 
+  // Never await the audio plugin here: on Chrome it can stall before the first
+  // frame, which leaves a white tab that never opens.
+  unawaited(GameAudio.instance.start());
   runApp(const NailGlamApp());
 }
 
@@ -53,16 +59,51 @@ class _GameHostState extends State<GameHost> {
   late final NailGlamGame _game = NailGlamGame();
 
   @override
+  void initState() {
+    super.initState();
+    PlayerProgress.load()
+        .then((PlayerProgress progress) {
+          _game.progress = progress;
+          if (mounted) {
+            setState(() {});
+          }
+        })
+        .catchError((Object _) {});
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GameWidget<NailGlamGame>(
       game: _game,
       backgroundBuilder: (BuildContext context) =>
-          const ColoredBox(color: Color(0xFF2B1D22)),
+          const ColoredBox(color: Color(0xFFFFE4C8)),
+      loadingBuilder: (BuildContext context) => const ColoredBox(
+        color: Color(0xFFFFE4C8),
+        child: Center(
+          child: CircularProgressIndicator(color: Color(0xFFE56B97)),
+        ),
+      ),
+      errorBuilder: (BuildContext context, Object error) => ColoredBox(
+        color: const Color(0xFFFFE4C8),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              '$error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF6B524C)),
+            ),
+          ),
+        ),
+      ),
       overlayBuilderMap: <String, Widget Function(BuildContext, NailGlamGame)>{
         HomeOverlay.id: (BuildContext context, NailGlamGame game) =>
-            HomeOverlay(onPlay: game.startArrival),
+            HomeOverlay(onPlay: game.startArrival, progress: game.progress),
         ArrivalCompleteOverlay.id: (BuildContext context, NailGlamGame game) =>
-            ArrivalCompleteOverlay(onReplay: game.startArrival),
+            ArrivalCompleteOverlay(
+              onReplay: game.startArrival,
+              guestName: game.guest.name,
+            ),
         ArrivalControlsOverlay.id: (BuildContext context, NailGlamGame game) =>
             ArrivalControlsOverlay(
               onTogglePause: game.togglePause,
@@ -72,6 +113,7 @@ class _GameHostState extends State<GameHost> {
             (BuildContext context, NailGlamGame game) =>
                 CustomerThoughtBubbleOverlay(
                   onComplete: game.completeCustomerDialogue,
+                  guest: game.guest,
                 ),
         NailCareOverlay.id: (BuildContext context, NailGlamGame game) =>
             NailCareOverlay(game: game),

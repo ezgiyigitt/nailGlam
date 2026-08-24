@@ -13,8 +13,12 @@ void main() {
       ),
     );
 
+    expect(find.byKey(const Key('guest-nameplate')), findsOneWidget);
+    expect(find.text('GUEST'), findsOneWidget);
+    expect(find.text('Lila'), findsOneWidget);
+
     const dialogue = <String>[
-      "Hi! I'm ready for some glam! 💕",
+      "I'm ready for some glam! 💕",
       "First, let's clean my nails!",
       "Now let's smooth and shape them!",
       'Time for some beautiful color! ✨',

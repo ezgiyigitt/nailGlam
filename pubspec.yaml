@@ -35,6 +35,8 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   flame: ^1.38.0
+  shared_preferences: ^2.5.5
+  audioplayers: ^6.5.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -58,23 +60,27 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/audio/
     - assets/images/
-    - assets/images/customer-walk-v1.png
-    - assets/images/customer1_stop.png
-    - assets/images/customer1_sit.png
-    - assets/images/customer1_wait.png
-    - assets/images/character_look.png
-    - assets/images/table.png
-    - assets/images/salon_chair.png
     - assets/images/table_surface.png
+    - assets/images/customer_emotion.png
+    - assets/images/manicure_pillow.png
+    - assets/images/manicure_pillow_top.png
+    - assets/images/shop_chair_pink.png
+    - assets/images/shop_chair_gold.png
+    - assets/images/shop_table_marble.png
+    - assets/images/shop_table_premium.png
     - assets/images/door_frame.png
     - assets/images/door.png
-    - assets/images/customer_emotion.png
     - assets/images/spray.png
     - assets/images/clips.png
     - assets/images/short_nail.png
     - assets/images/hand_wash.png
     - assets/images/fifth_nail_clean.png
+    - assets/images/fourth_nail.png
+    - assets/images/fourth_short_nail.png
+    - assets/images/ring_nail_mask.png
+    - assets/images/Pink_nail_mask.png
     - assets/images/nail_buffer.png
     - assets/images/hand_soap.png
 

@@ -1,96 +1,86 @@
 import 'dart:math' as math;
-import 'dart:ui' show Canvas, FilterQuality;
+import 'dart:ui' show FilterQuality;
 
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flutter/animation.dart';
 
 import '../config/game_config.dart';
-import '../config/sprite_atlas.dart';
-import 'soft_shadow_component.dart';
 
-enum CustomerPhase { offstage, walking, sitting, seatedIdle, handsToTable }
+enum CustomerPhase {
+  offstage,
+  walking,
+  turning,
+  sitting,
+  seatedIdle,
+  handsToTable,
+}
 
-/// The arriving customer.
+/// The arriving customer, drawn from the waist up.
 ///
-/// Her sprite only ever plays a cycle in place; travel and perspective live
-/// in world space so sheet swaps do not skate her across the floor.
+/// She walks in from off the left edge in side profile, stops at the chair,
+/// pivots to face the desk and settles into her seat. Everything below her
+/// waist is cropped out of the art, so no matter where she is placed the
+/// player only ever sees her upper body above the manicure desk.
 class CustomerComponent extends SpriteAnimationComponent {
   CustomerComponent({
-    required SpriteAnimation walkAnimation,
-    required SpriteAnimation stopAnimation,
-    required SpriteAnimation turnAnimation,
-    required SpriteAnimation sitAnimation,
-    required this.shadow,
-  }) : _walk = walkAnimation,
-       _stop = stopAnimation,
-       _turn = turnAnimation,
-       _sit = sitAnimation,
-       super(
-         anchor: Anchor.bottomCenter,
-         priority: GameConfig.priorityCustomer,
-       );
+    required this.walk,
+    required this.turn,
+    required this.sit,
+  }) : super(anchor: Anchor.topCenter, priority: GameConfig.priorityCustomer);
 
-  final SpriteAnimation _walk;
-  final SpriteAnimation _stop;
-  final SpriteAnimation _turn;
-  final SpriteAnimation _sit;
+  final SpriteAnimation walk;
+  final SpriteAnimation turn;
+  final SpriteAnimation sit;
 
-  final SoftShadowComponent shadow;
-
-  VoidCallback? onClearedDoorway;
   VoidCallback? onStartedSitting;
   VoidCallback? onSeated;
   VoidCallback? onHandsOnTable;
 
   CustomerPhase _phase = CustomerPhase.offstage;
-  bool _doorwayCleared = false;
-  CharacterSheet _activeSheet = SpriteAtlas.customerWalk;
-  final Vector2 _lockedSeatPosition = Vector2.zero();
+
+  double _bobClock = 0;
 
   CustomerPhase get phase => _phase;
 
-  double get depthScale => scale.x;
+  bool get isSeated =>
+      _phase == CustomerPhase.seatedIdle ||
+      _phase == CustomerPhase.handsToTable;
 
-  double get groundY =>
-      _phase == CustomerPhase.sitting ||
-          _phase == CustomerPhase.seatedIdle ||
-          _phase == CustomerPhase.handsToTable
-      ? position.y
-      : position.y - _footOffset;
+  /// Bottom edge of the sprite cell, kept for composition checks.
+  double get baseY => position.y + size.y;
 
-  double get _footOffset {
-    final index = (animationTicker?.currentIndex ?? 0).clamp(
-      0,
-      _activeSheet.footPaddings.length - 1,
-    );
-    return _activeSheet.footPaddings[index] *
-        _activeSheet.displayScale *
-        scale.y;
+  double get _topY {
+    switch (_phase) {
+      case CustomerPhase.sitting:
+      case CustomerPhase.seatedIdle:
+      case CustomerPhase.handsToTable:
+        return GameConfig.customerTopY + GameConfig.customerSitDrop;
+      case CustomerPhase.turning:
+        final ticker = animationTicker;
+        final total = ticker?.totalDuration() ?? 0;
+        final t = total <= 0 ? 1.0 : ((ticker?.clock ?? 0) / total).clamp(0.0, 1.0);
+        return GameConfig.customerTopY + GameConfig.customerSitDrop * t;
+      case CustomerPhase.walking:
+      case CustomerPhase.offstage:
+        return GameConfig.customerTopY;
+    }
   }
 
   @override
   Future<void> onLoad() async {
-    paint.filterQuality = FilterQuality.high;
-    _applyAnimation(_walk, SpriteAtlas.customerWalk);
-    resetToDoorway();
+    paint.filterQuality = FilterQuality.medium;
+    resetOffstage();
   }
 
-  void resetToDoorway() {
+  void resetOffstage() {
     _clearEffects();
     _phase = CustomerPhase.offstage;
-    _doorwayCleared = false;
+    _bobClock = 0;
     priority = GameConfig.priorityCustomer;
-    _lockedSeatPosition.setValues(
-      GameConfig.customerSeatX,
-      GameConfig.customerNearGroundY,
-    );
     opacity = 0;
-    playing = true;
-    _applyAnimation(_walk, SpriteAtlas.customerWalk);
-    position.x = GameConfig.customerStartX;
-    _applyPerspective();
-    _syncShadow();
+    _play(walk);
+    position.setValues(GameConfig.customerEntryX, _topY);
   }
 
   void enterSalon() {
@@ -98,8 +88,6 @@ class CustomerComponent extends SpriteAnimationComponent {
       return;
     }
     _phase = CustomerPhase.walking;
-    playing = true;
-    _applyAnimation(_walk, SpriteAtlas.customerWalk);
     add(
       OpacityEffect.to(
         1,
@@ -109,15 +97,12 @@ class CustomerComponent extends SpriteAnimationComponent {
   }
 
   void playHandsToTable() {
-    if (_phase != CustomerPhase.seatedIdle &&
-        _phase != CustomerPhase.handsToTable) {
+    if (!isSeated) {
       return;
     }
     _clearEffects();
-    position.setFrom(_lockedSeatPosition);
     _phase = CustomerPhase.handsToTable;
-    priority = GameConfig.priorityCustomer;
-    playing = false;
+    _snapToSeat();
     onHandsOnTable?.call();
   }
 
@@ -125,142 +110,70 @@ class CustomerComponent extends SpriteAnimationComponent {
   void update(double dt) {
     super.update(dt);
 
-    if (_phase == CustomerPhase.walking) {
-      final remaining = GameConfig.customerSeatX - position.x;
-      var speed = GameConfig.customerWalkSpeed;
-      if (remaining <= GameConfig.walkSlowdownDistance) {
-        final t = (1.0 - remaining / GameConfig.walkSlowdownDistance).clamp(
-          0.0,
-          1.0,
-        );
-        speed = _lerp(
-          GameConfig.customerWalkSpeed,
-          GameConfig.customerWalkEndSpeed,
-          t * t,
-        );
-      }
-
-      position.x = math.min(
-        position.x + speed * dt,
-        GameConfig.customerSeatX,
-      );
-      _applyPerspective();
-
-      if (!_doorwayCleared &&
-          position.x - GameConfig.customerStartX >=
-              GameConfig.doorCloseTriggerDistance) {
-        _doorwayCleared = true;
-        onClearedDoorway?.call();
-      }
-
-      if (position.x >= GameConfig.customerSeatX) {
-        _beginSitting();
-      }
-    } else if (_phase == CustomerPhase.sitting ||
-        _phase == CustomerPhase.seatedIdle ||
-        _phase == CustomerPhase.handsToTable) {
-      position.setFrom(_lockedSeatPosition);
+    switch (_phase) {
+      case CustomerPhase.walking:
+        _bobClock += dt;
+        final travelled =
+            position.x + GameConfig.customerWalkSpeed * dt;
+        if (travelled >= GameConfig.customerSeatX) {
+          _beginTurning();
+        } else {
+          position.setValues(travelled, _topY + _bob());
+        }
+      case CustomerPhase.turning:
+        _snapToSeat();
+        if (animationTicker?.done() ?? true) {
+          _beginSitting();
+        }
+      case CustomerPhase.sitting:
+        _snapToSeat();
+        if (animationTicker?.done() ?? true) {
+          _phase = CustomerPhase.seatedIdle;
+          onSeated?.call();
+        }
+      case CustomerPhase.seatedIdle:
+      case CustomerPhase.handsToTable:
+        _snapToSeat();
+      case CustomerPhase.offstage:
+        break;
     }
+  }
 
-    _syncShadow();
+  /// Fades the bob out over the last stride so the turn has nothing to cancel.
+  double _bob() {
+    final remaining = GameConfig.customerSeatX - position.x;
+    final settling = math.min(1, remaining / 140);
+    return math.sin(_bobClock * GameConfig.customerBobSpeed) *
+        GameConfig.customerBobAmplitude *
+        settling;
+  }
+
+  void _beginTurning() {
+    _phase = CustomerPhase.turning;
+    _play(turn);
+    _snapToSeat();
   }
 
   void _beginSitting() {
     _clearEffects();
-    _lockedSeatPosition.setValues(
-      GameConfig.customerSeatX,
-      GameConfig.customerNearGroundY,
-    );
-    position.setFrom(_lockedSeatPosition);
     _phase = CustomerPhase.sitting;
-    scale.setValues(GameConfig.customerNearScale, GameConfig.customerNearScale);
+    _play(sit);
+    _snapToSeat();
     onStartedSitting?.call();
-    _playSheet(_stop, SpriteAtlas.customerStop, _playTurn);
   }
 
-  void _playTurn() {
-    _playSheet(_turn, SpriteAtlas.customerTurn, _playSit);
+  void _snapToSeat() {
+    position.setValues(GameConfig.customerSeatX, _topY);
   }
 
-  void _playSit() {
-    _playSheet(_sit, SpriteAtlas.customerSit, () {
-      playing = false;
-      _phase = CustomerPhase.seatedIdle;
-      onSeated?.call();
-    });
-  }
-
-  void _playSheet(
-    SpriteAnimation animation,
-    CharacterSheet sheet,
-    VoidCallback onComplete,
-  ) {
-    position.setFrom(_lockedSeatPosition);
-    playing = true;
-    _applyAnimation(animation, sheet);
-    animationTicker?.onComplete = () {
-      position.setFrom(_lockedSeatPosition);
-      onComplete();
-    };
-  }
-
-  void _applyAnimation(SpriteAnimation newAnimation, CharacterSheet sheet) {
-    animation = newAnimation;
+  void _play(SpriteAnimation value) {
+    animation = value;
     animationTicker?.reset();
-    _activeSheet = sheet;
-    size = sheet.frameSize * sheet.displayScale;
-  }
-
-  @override
-  void render(Canvas canvas) {
-    if (_phase == CustomerPhase.sitting ||
-        _phase == CustomerPhase.seatedIdle ||
-        _phase == CustomerPhase.handsToTable) {
-      canvas.save();
-      canvas.translate(0, _footOffset);
-      super.render(canvas);
-      canvas.restore();
-      return;
-    }
-    super.render(canvas);
-  }
-
-  void _applyPerspective() {
-    final travel = GameConfig.customerSeatX - GameConfig.customerStartX;
-    final t = travel == 0
-        ? 1.0
-        : ((position.x - GameConfig.customerStartX) / travel).clamp(0.0, 1.0);
-
-    final perspectiveScale = _lerp(
-      GameConfig.customerFarScale,
-      GameConfig.customerNearScale,
-      t,
+    final frame = value.frames.first.sprite.srcSize;
+    size.setValues(
+      GameConfig.customerHeight * frame.x / frame.y,
+      GameConfig.customerHeight,
     );
-    scale.setValues(perspectiveScale, perspectiveScale);
-
-    final ground = _lerp(
-      GameConfig.customerFarGroundY,
-      GameConfig.customerNearGroundY,
-      t,
-    );
-    position.y = ground + _footOffset;
-  }
-
-  void _syncShadow() {
-    final s = scale.x;
-    final seated = _phase != CustomerPhase.walking;
-
-    final widthFactor = seated ? GameConfig.shadowSeatedWidthFactor : 1.0;
-    final heightFactor = seated ? GameConfig.shadowSeatedHeightFactor : 1.0;
-    final strengthFactor = seated ? GameConfig.shadowSeatedStrengthFactor : 1.0;
-    final offsetX = seated ? GameConfig.shadowSeatedOffsetX : 0.0;
-
-    shadow.position.setValues(position.x + offsetX * s, groundY);
-    shadow.size.setValues(
-      GameConfig.shadowWidth * s * widthFactor,
-      GameConfig.shadowHeight * s * heightFactor,
-    );
-    shadow.strength = s * strengthFactor * opacity;
   }
 
   void _clearEffects() {
@@ -268,6 +181,4 @@ class CustomerComponent extends SpriteAnimationComponent {
       effect.removeFromParent();
     }
   }
-
-  static double _lerp(double a, double b, double t) => a + (b - a) * t;
 }
