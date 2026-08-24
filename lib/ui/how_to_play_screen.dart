@@ -24,6 +24,22 @@ class HowToPlayScreen extends StatefulWidget {
 class _HowToPlayScreenState extends State<HowToPlayScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _clock;
+  bool _ready = false;
+
+  static const List<String> _preload = <String>[
+    AssetPaths.customerSit,
+    AssetPaths.customerEmotion,
+    AssetPaths.handWash,
+    AssetPaths.handSoap,
+    AssetPaths.fifthNailClean,
+    AssetPaths.shortNail,
+    AssetPaths.nailSpray,
+    AssetPaths.nailBuffer,
+    AssetPaths.nailClips,
+    AssetPaths.polishBrush,
+    AssetPaths.polishBlush,
+    AssetPaths.manicurePillowTop,
+  ];
 
   @override
   void initState() {
@@ -33,8 +49,14 @@ class _HowToPlayScreenState extends State<HowToPlayScreen>
         if (status == AnimationStatus.completed) {
           _clock.forward(from: 0);
         }
-      })
-      ..forward();
+      });
+    Future.wait(_preload.map(AssetImageCache.load)).then((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _ready = true);
+      _clock.forward();
+    });
   }
 
   @override
@@ -45,7 +67,9 @@ class _HowToPlayScreenState extends State<HowToPlayScreen>
 
   void _close() {
     GameAudio.instance.tap();
-    Navigator.pop(context);
+    if (Navigator.of(context).canPop()) {
+      Navigator.pop(context);
+    }
   }
 
   void _seek(HowToPlayBeat beat) {
@@ -106,7 +130,9 @@ class _HowToPlayScreenState extends State<HowToPlayScreen>
                       child: Center(
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 430),
-                          child: _StageCard(beat: beat, t: _clock.value),
+                          child: _ready
+                              ? _StageCard(beat: beat, t: _clock.value)
+                              : const _StageLoading(),
                         ),
                       ),
                     ),
@@ -188,6 +214,23 @@ enum HowToPlayBeat {
   }
 }
 
+class _StageLoading extends StatelessWidget {
+  const _StageLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        color: Color(0xF7FFF8FC),
+        borderRadius: BorderRadius.all(Radius.circular(32)),
+      ),
+      child: Center(
+        child: CircularProgressIndicator(color: HowToPlayScreen.pink),
+      ),
+    );
+  }
+}
+
 class _StageCard extends StatelessWidget {
   const _StageCard({required this.beat, required this.t});
 
@@ -196,38 +239,37 @@ class _StageCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 0.78,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: const Color(0xF7FFF8FC),
-          borderRadius: BorderRadius.circular(32),
-          border: Border.all(color: HowToPlayScreen.cream, width: 5),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(
-              color: Color(0x44C2185B),
-              blurRadius: 22,
-              offset: Offset(0, 10),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xF7FFF8FC),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: HowToPlayScreen.cream, width: 5),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x44C2185B),
+            blurRadius: 22,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(27),
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            Image.asset(
+              'assets/images/${AssetPaths.tableSurface}',
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+              filterQuality: FilterQuality.high,
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(27),
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              Image.asset(
-                'assets/images/${AssetPaths.tableSurface}',
-                fit: BoxFit.cover,
-                alignment: Alignment.topCenter,
-                filterQuality: FilterQuality.high,
-              ),
-              const ColoredBox(color: Color(0x33FFF3EA)),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 280),
-                switchInCurve: Curves.easeOutCubic,
-                child: KeyedSubtree(
-                  key: ValueKey<HowToPlayBeat>(beat),
+            const ColoredBox(color: Color(0x28FFF3EA)),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 280),
+              switchInCurve: Curves.easeOutCubic,
+              child: KeyedSubtree(
+                key: ValueKey<HowToPlayBeat>(beat),
+                child: SizedBox.expand(
                   child: switch (beat) {
                     HowToPlayBeat.wish => _WishBeat(t: beat.progress(t)),
                     HowToPlayBeat.wash => _WashBeat(t: beat.progress(t)),
@@ -236,8 +278,13 @@ class _StageCard extends StatelessWidget {
                   },
                 ),
               ),
-            ],
-          ),
+            ),
+            const Positioned(
+              top: 12,
+              left: 12,
+              child: _AutoBadge(),
+            ),
+          ],
         ),
       ),
     );
@@ -255,14 +302,25 @@ class _WishBeat extends StatelessWidget {
     final bubble = Curves.easeOutBack.transform(((t - 0.28) / 0.35).clamp(0.0, 1.0));
 
     return Stack(
+      fit: StackFit.expand,
       children: <Widget>[
         Align(
-          alignment: const Alignment(0, 0.35),
+          alignment: const Alignment(0, 0.42),
           child: StripFrame(
             asset: AssetPaths.customerSit,
             frame: sitFrame,
             frameCount: 4,
-            height: 280,
+            height: 220,
+          ),
+        ),
+        const Align(
+          alignment: Alignment(-0.72, -0.72),
+          child: StripFrame(
+            asset: AssetPaths.customerEmotion,
+            frame: 3,
+            frameCount: 5,
+            width: 86,
+            height: 86,
           ),
         ),
         Align(
@@ -321,31 +379,27 @@ class _WashBeat extends StatelessWidget {
     final soapT = Curves.easeInOut.transform(t);
 
     return Stack(
+      fit: StackFit.expand,
       children: <Widget>[
         Align(
-          alignment: const Alignment(0, 0.2),
+          alignment: const Alignment(0, 0.28),
           child: Transform.translate(
             offset: Offset(align.x * 0.35, align.y * 0.35),
             child: CroppedAsset(
               asset: AssetPaths.handWash,
               source: Rect.fromLTWH(origin.x, origin.y, size.x, size.y),
-              height: 300,
+              height: 340,
             ),
           ),
         ),
         Align(
-          alignment: Alignment(0.55 - 0.7 * soapT, -0.55 + 0.7 * soapT),
+          alignment: Alignment(0.62 - 0.85 * soapT, -0.58 + 0.75 * soapT),
           child: Transform.rotate(
-            angle: -0.4 + soapT * 0.9,
-            child: CroppedAsset(
-              asset: AssetPaths.handSoap,
-              source: Rect.fromLTWH(
-                SpriteAtlas.handSoap.position.x,
-                SpriteAtlas.handSoap.position.y,
-                SpriteAtlas.handSoap.size.x,
-                SpriteAtlas.handSoap.size.y,
-              ),
-              height: 110,
+            angle: -0.45 + soapT * 1.05,
+            child: Image.asset(
+              'assets/images/${AssetPaths.handSoap}',
+              height: 130,
+              filterQuality: FilterQuality.high,
             ),
           ),
         ),
@@ -370,24 +424,54 @@ class _NailBeat extends StatelessWidget {
                 : 3;
     final clipFrame = phase < 2 ? 0 : ((t - 0.44) / 0.28 * 3.99).floor().clamp(0, 3);
     final showShort = phase >= 2;
-    final toolPath = switch (phase) {
-      0 => AssetPaths.nailSpray,
-      1 => AssetPaths.nailBuffer,
-      2 => AssetPaths.nailClips,
-      _ => AssetPaths.polishBrush,
+    final bob = math.sin(t * math.pi * 8) * 10;
+    final tool = switch (phase) {
+      0 => Image.asset(
+          'assets/images/${AssetPaths.nailSpray}',
+          height: 150,
+          filterQuality: FilterQuality.high,
+        ),
+      1 => Image.asset(
+          'assets/images/${AssetPaths.nailBuffer}',
+          height: 130,
+          filterQuality: FilterQuality.high,
+        ),
+      2 => CroppedAsset(
+          asset: AssetPaths.nailClips,
+          source: Rect.fromLTWH(
+            SpriteAtlas.nailClips.position.x,
+            SpriteAtlas.nailClips.position.y,
+            SpriteAtlas.nailClips.size.x,
+            SpriteAtlas.nailClips.size.y,
+          ),
+          height: 120,
+        ),
+      _ => CroppedAsset(
+          asset: AssetPaths.polishBrush,
+          source: Rect.fromLTWH(
+            SpriteAtlas.polishBrush.position.x,
+            SpriteAtlas.polishBrush.position.y,
+            SpriteAtlas.polishBrush.size.x,
+            SpriteAtlas.polishBrush.size.y,
+          ),
+          height: 140,
+        ),
     };
-    final toolRegion = switch (phase) {
-      0 => SpriteAtlas.nailSpray,
-      1 => SpriteAtlas.nailBuffer,
-      2 => SpriteAtlas.nailClips,
-      _ => SpriteAtlas.polishBrush,
-    };
-    final bob = math.sin(t * math.pi * 6) * 8;
 
     return Stack(
+      fit: StackFit.expand,
       children: <Widget>[
         Align(
-          alignment: const Alignment(-0.15, 0.35),
+          alignment: const Alignment(0, 0.82),
+          child: Image.asset(
+            'assets/images/${AssetPaths.manicurePillowTop}',
+            width: 280,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          ),
+        ),
+        Align(
+          alignment: const Alignment(0, 0.18),
           child: showShort
               ? CroppedAsset(
                   asset: AssetPaths.shortNail,
@@ -397,7 +481,7 @@ class _NailBeat extends StatelessWidget {
                     SpriteAtlas.shortNail.frameSize.x,
                     SpriteAtlas.shortNail.frameSize.y,
                   ),
-                  height: 310,
+                  height: 300,
                 )
               : CroppedAsset(
                   asset: AssetPaths.fifthNailClean,
@@ -407,31 +491,19 @@ class _NailBeat extends StatelessWidget {
                     SpriteAtlas.fifthNailClean.frameSize.x,
                     SpriteAtlas.fifthNailClean.frameSize.y,
                   ),
-                  height: 310,
+                  height: 300,
                 ),
         ),
         Align(
-          alignment: Alignment(0.72, -0.05 + bob / 180),
-          child: Transform.rotate(
-            angle: -0.35,
-            child: CroppedAsset(
-              asset: toolPath,
-              source: Rect.fromLTWH(
-                toolRegion.position.x,
-                toolRegion.position.y,
-                toolRegion.size.x,
-                toolRegion.size.y,
-              ),
-              height: phase == 2 ? 120 : 150,
-            ),
-          ),
+          alignment: Alignment(0.78, -0.12 + bob / 160),
+          child: Transform.rotate(angle: -0.4, child: tool),
         ),
         if (phase == 3)
           Align(
-            alignment: const Alignment(0.78, 0.55),
+            alignment: const Alignment(-0.78, 0.62),
             child: Image.asset(
               'assets/images/${AssetPaths.polishBlush}',
-              height: 88,
+              height: 96,
               filterQuality: FilterQuality.high,
             ),
           ),
@@ -453,6 +525,7 @@ class _GoldBeat extends StatelessWidget {
         final origin = Offset(constraints.maxWidth * 0.5, constraints.maxHeight * 0.58);
         final target = Offset(constraints.maxWidth - 36, 36);
         return Stack(
+          fit: StackFit.expand,
           children: <Widget>[
             Positioned(
               top: 14,
@@ -522,6 +595,31 @@ class _ArcCoin extends StatelessWidget {
       child: Opacity(
         opacity: t <= 0 || t >= 1 ? 0 : 1,
         child: const GoldCoin(size: 22),
+      ),
+    );
+  }
+}
+
+class _AutoBadge extends StatelessWidget {
+  const _AutoBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xDDFF6BA8),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Text(
+        'AUTO',
+        style: TextStyle(
+          fontFamily: 'Baloo2',
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.2,
+        ),
       ),
     );
   }

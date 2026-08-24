@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Decodes a bundled image once and paints a source rectangle into [size].
+/// Decodes a bundled image once and paints a source rectangle into a real box.
 class CroppedAsset extends StatefulWidget {
   const CroppedAsset({
     required this.asset,
@@ -26,7 +26,7 @@ class CroppedAsset extends StatefulWidget {
 }
 
 class _CroppedAssetState extends State<CroppedAsset> {
-  ui.Image? _image;
+  ui.Image? get _image => AssetImageCache.decoded[widget.asset];
 
   @override
   void initState() {
@@ -47,28 +47,52 @@ class _CroppedAssetState extends State<CroppedAsset> {
     if (!mounted) {
       return;
     }
-    setState(() => _image = image);
+    setState(() {});
+  }
+
+  Rect _clampedSource(ui.Image image) {
+    final bounds = Rect.fromLTWH(
+      0,
+      0,
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+    final hit = widget.source.intersect(bounds);
+    if (hit.width >= 1 && hit.height >= 1) {
+      return hit;
+    }
+    return bounds;
   }
 
   @override
   Widget build(BuildContext context) {
     final image = _image;
-    final src = widget.source;
+    if (image == null) {
+      return SizedBox(width: widget.width, height: widget.height);
+    }
+    final src = _clampedSource(image);
     final aspect = src.width / src.height;
-    final width = widget.width;
-    final height = widget.height ?? (width == null ? null : width / aspect);
+    var width = widget.width;
+    var height = widget.height;
+    if (width == null && height != null) {
+      width = height * aspect;
+    } else if (height == null && width != null) {
+      height = width / aspect;
+    } else if (width == null && height == null) {
+      width = src.width;
+      height = src.height;
+    }
     return SizedBox(
       width: width,
       height: height,
-      child: image == null
-          ? const SizedBox.expand()
-          : CustomPaint(
-              painter: _CropPainter(
-                image: image,
-                source: src,
-                fit: widget.fit,
-              ),
-            ),
+      child: CustomPaint(
+        size: Size(width!, height!),
+        painter: _CropPainter(
+          image: image,
+          source: src,
+          fit: widget.fit,
+        ),
+      ),
     );
   }
 }
@@ -95,7 +119,7 @@ class StripFrame extends StatefulWidget {
 }
 
 class _StripFrameState extends State<StripFrame> {
-  ui.Image? _image;
+  ui.Image? get _image => AssetImageCache.decoded[widget.asset];
 
   @override
   void initState() {
@@ -116,7 +140,7 @@ class _StripFrameState extends State<StripFrame> {
     if (!mounted) {
       return;
     }
-    setState(() => _image = image);
+    setState(() {});
   }
 
   @override
@@ -144,13 +168,19 @@ class _StripFrameState extends State<StripFrame> {
 
 /// Shared decode cache so the demo does not reload PNGs every frame.
 abstract final class AssetImageCache {
+  static final Map<String, ui.Image> decoded = <String, ui.Image>{};
   static final Map<String, Future<ui.Image>> _pending = <String, Future<ui.Image>>{};
 
   static Future<ui.Image> load(String asset) {
+    final hit = decoded[asset];
+    if (hit != null) {
+      return Future<ui.Image>.value(hit);
+    }
     return _pending.putIfAbsent(asset, () async {
       final data = await rootBundle.load('assets/images/$asset');
       final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
       final frame = await codec.getNextFrame();
+      decoded[asset] = frame.image;
       return frame.image;
     });
   }
@@ -173,7 +203,10 @@ class _CropPainter extends CustomPainter {
       return;
     }
     final fitted = applyBoxFit(fit, source.size, size);
-    final dest = Alignment.center.inscribe(fitted.destination, Offset.zero & size);
+    final dest = Alignment.center.inscribe(
+      fitted.destination,
+      Offset.zero & size,
+    );
     canvas.drawImageRect(
       image,
       source,
