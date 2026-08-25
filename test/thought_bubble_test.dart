@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nail_glam/ui/customer_thought_bubble_overlay.dart';
+import 'package:nail_glam/view/customer_thought_bubble_overlay.dart';
 
 void main() {
   testWidgets('thought bubble advances one sentence per tap', (

@@ -1,0 +1,555 @@
+import 'asset_paths.dart';
+
+/// Discrete steps of the manicure minigame that follows the salon arrival.
+enum NailDigit { pinky, ring, middle, pointer, thumb }
+
+extension NailDigitFlow on NailDigit {
+  String get label => switch (this) {
+        NailDigit.pinky => 'pinky',
+        NailDigit.ring => 'ring finger',
+        NailDigit.middle => 'middle finger',
+        NailDigit.pointer => 'index finger',
+        NailDigit.thumb => 'thumb',
+      };
+
+  NailDigit? get next => switch (this) {
+        NailDigit.pinky => NailDigit.ring,
+        NailDigit.ring => NailDigit.middle,
+        NailDigit.middle => NailDigit.pointer,
+        NailDigit.pointer => NailDigit.thumb,
+        NailDigit.thumb => null,
+      };
+
+  NailCareStage get focusStage => switch (this) {
+        NailDigit.pinky => NailCareStage.pinkyFingerFocus,
+        NailDigit.ring => NailCareStage.ringFingerFocus,
+        NailDigit.middle => NailCareStage.middleFingerFocus,
+        NailDigit.pointer => NailCareStage.indexFingerFocus,
+        NailDigit.thumb => NailCareStage.thumbFingerFocus,
+      };
+}
+
+/// HUD snapshot for one finger on the bottom simulation strip.
+class DigitSimSnapshot {
+  const DigitSimSnapshot({
+    this.cleanProgress = 0,
+    this.cutFrame = 0,
+    this.polishColor,
+  });
+
+  /// Spray + wipe, 0 dirty → 1 fully clean.
+  final double cleanProgress;
+
+  /// Clip frames, 0 long → 3 fully short.
+  final int cutFrame;
+
+  /// Painted lacquer, if this digit has been polished.
+  final int? polishColor;
+
+  bool get isClean => cleanProgress >= 1;
+  bool get isShort => cutFrame >= 3;
+  bool get isPolished => polishColor != null;
+
+  DigitSimSnapshot copyWith({
+    double? cleanProgress,
+    int? cutFrame,
+    int? polishColor,
+  }) {
+    return DigitSimSnapshot(
+      cleanProgress: cleanProgress ?? this.cleanProgress,
+      cutFrame: cutFrame ?? this.cutFrame,
+      polishColor: polishColor ?? this.polishColor,
+    );
+  }
+}
+
+enum NailCareStage {
+  inactive,
+  handCleaning,
+  handCleaningCompleted,
+  pinkyFingerFocus,
+  ringFingerFocus,
+  middleFingerFocus,
+  indexFingerFocus,
+  thumbFingerFocus,
+  nailSpraying,
+  nailBuffering,
+  nailBufferingCompleted,
+  nailCutting,
+  nailCuttingCompleted,
+  nailPolishing,
+  nailPolishingCompleted,
+  /// All five nails done — zoom out to the finished hand.
+  handReveal,
+}
+
+enum NailCareToolId { handSoap, nailSpray, nailBuffer, nailClips, nailPolish }
+
+enum NailCareInteraction { dragOntoTarget }
+
+/// One manicure tool. New tools are added here rather than hardcoded in UI.
+class NailCareTool {
+  const NailCareTool({
+    required this.id,
+    required this.name,
+    required this.iconPath,
+    required this.hint,
+    required this.requiredStage,
+    required this.interaction,
+    this.unlocked = true,
+    this.unlockLevel = 1,
+  });
+
+  final NailCareToolId id;
+  final String name;
+  final String iconPath;
+  final String hint;
+  final NailCareStage requiredStage;
+  final NailCareInteraction interaction;
+  final bool unlocked;
+  final int unlockLevel;
+}
+
+/// Catalog of tools that can appear on the nail-care interaction card.
+abstract final class NailCareCatalog {
+  static const List<NailCareTool> all = <NailCareTool>[
+    NailCareTool(
+      id: NailCareToolId.handSoap,
+      name: 'Hand Soap',
+      iconPath: AssetPaths.handSoap,
+      hint: 'Drag onto hand',
+      requiredStage: NailCareStage.handCleaning,
+      interaction: NailCareInteraction.dragOntoTarget,
+    ),
+    NailCareTool(
+      id: NailCareToolId.nailSpray,
+      name: 'Nail Spray',
+      iconPath: AssetPaths.nailSpray,
+      hint: 'Spray onto nail',
+      requiredStage: NailCareStage.nailSpraying,
+      interaction: NailCareInteraction.dragOntoTarget,
+    ),
+    NailCareTool(
+      id: NailCareToolId.nailBuffer,
+      name: 'Nail Wipe',
+      iconPath: AssetPaths.nailBuffer,
+      hint: 'Drag onto nail',
+      requiredStage: NailCareStage.nailBuffering,
+      interaction: NailCareInteraction.dragOntoTarget,
+    ),
+    NailCareTool(
+      id: NailCareToolId.nailClips,
+      name: 'Nail Clips',
+      iconPath: AssetPaths.nailClips,
+      hint: 'Clip the nail',
+      requiredStage: NailCareStage.nailCutting,
+      interaction: NailCareInteraction.dragOntoTarget,
+    ),
+    NailCareTool(
+      id: NailCareToolId.nailPolish,
+      name: 'Nail Brush',
+      iconPath: AssetPaths.polishBrush,
+      hint: 'Paint the nail',
+      requiredStage: NailCareStage.nailPolishing,
+      interaction: NailCareInteraction.dragOntoTarget,
+    ),
+  ];
+
+  static NailCareTool? activeToolFor(NailCareStage stage) {
+    for (final tool in all) {
+      if (tool.requiredStage == stage && tool.unlocked) {
+        return tool;
+      }
+    }
+    return null;
+  }
+
+  static NailCareTool toolById(NailCareToolId id) {
+    return all.firstWhere((NailCareTool tool) => tool.id == id);
+  }
+}
+
+/// One slot in a tool kit. Swap [iconPath] later when unique art lands.
+class NailCareInventoryItem {
+  const NailCareInventoryItem({
+    required this.id,
+    required this.toolId,
+    required this.name,
+    required this.iconPath,
+    required this.unlocked,
+    this.unlockPrice = 0,
+    this.polishColor = 0,
+  });
+
+  final String id;
+  final NailCareToolId toolId;
+  final String name;
+  final String iconPath;
+  final bool unlocked;
+  final int unlockPrice;
+  final int polishColor;
+}
+
+/// Soap and buffer kits shown as 8-slot drawers. Slot 0 is owned.
+abstract final class NailCareInventory {
+  static const List<NailCareInventoryItem> soaps = <NailCareInventoryItem>[
+    NailCareInventoryItem(
+      id: 'soap-0',
+      toolId: NailCareToolId.handSoap,
+      name: 'Hand Soap',
+      iconPath: AssetPaths.handSoap,
+      unlocked: true,
+    ),
+    NailCareInventoryItem(
+      id: 'soap-1',
+      toolId: NailCareToolId.handSoap,
+      name: 'Premium Soap',
+      iconPath: AssetPaths.premiumSoap,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'soap-2',
+      toolId: NailCareToolId.handSoap,
+      name: 'Soap 3',
+      iconPath: AssetPaths.handSoap,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'soap-3',
+      toolId: NailCareToolId.handSoap,
+      name: 'Soap 4',
+      iconPath: AssetPaths.handSoap,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'soap-4',
+      toolId: NailCareToolId.handSoap,
+      name: 'Soap 5',
+      iconPath: AssetPaths.handSoap,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'soap-5',
+      toolId: NailCareToolId.handSoap,
+      name: 'Soap 6',
+      iconPath: AssetPaths.handSoap,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'soap-6',
+      toolId: NailCareToolId.handSoap,
+      name: 'Soap 7',
+      iconPath: AssetPaths.handSoap,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'soap-7',
+      toolId: NailCareToolId.handSoap,
+      name: 'Soap 8',
+      iconPath: AssetPaths.handSoap,
+      unlocked: false,
+    ),
+  ];
+
+  static const NailCareInventoryItem spray = NailCareInventoryItem(
+    id: 'spray-0',
+    toolId: NailCareToolId.nailSpray,
+    name: 'Nail Spray',
+    iconPath: AssetPaths.nailSpray,
+    unlocked: true,
+  );
+
+  static const List<NailCareInventoryItem> sprays = <NailCareInventoryItem>[
+    spray,
+    NailCareInventoryItem(
+      id: 'spray-1',
+      toolId: NailCareToolId.nailSpray,
+      name: 'Premium Spray',
+      iconPath: AssetPaths.premiumSpray,
+      unlocked: false,
+    ),
+  ];
+
+  static const List<NailCareInventoryItem> buffers = <NailCareInventoryItem>[
+    NailCareInventoryItem(
+      id: 'buffer-0',
+      toolId: NailCareToolId.nailBuffer,
+      name: 'Nail Wipe',
+      iconPath: AssetPaths.nailBuffer,
+      unlocked: true,
+    ),
+    NailCareInventoryItem(
+      id: 'buffer-1',
+      toolId: NailCareToolId.nailBuffer,
+      name: 'Premium Wipe',
+      iconPath: AssetPaths.premiumWipe,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'buffer-2',
+      toolId: NailCareToolId.nailBuffer,
+      name: 'Wipe 3',
+      iconPath: AssetPaths.nailBuffer,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'buffer-3',
+      toolId: NailCareToolId.nailBuffer,
+      name: 'Wipe 4',
+      iconPath: AssetPaths.nailBuffer,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'buffer-4',
+      toolId: NailCareToolId.nailBuffer,
+      name: 'Wipe 5',
+      iconPath: AssetPaths.nailBuffer,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'buffer-5',
+      toolId: NailCareToolId.nailBuffer,
+      name: 'Wipe 6',
+      iconPath: AssetPaths.nailBuffer,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'buffer-6',
+      toolId: NailCareToolId.nailBuffer,
+      name: 'Wipe 7',
+      iconPath: AssetPaths.nailBuffer,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'buffer-7',
+      toolId: NailCareToolId.nailBuffer,
+      name: 'Wipe 8',
+      iconPath: AssetPaths.nailBuffer,
+      unlocked: false,
+    ),
+  ];
+
+  static const List<NailCareInventoryItem> clips = <NailCareInventoryItem>[
+    NailCareInventoryItem(
+      id: 'clips-0',
+      toolId: NailCareToolId.nailClips,
+      name: 'Nail Clips',
+      iconPath: AssetPaths.nailClips,
+      unlocked: true,
+    ),
+    NailCareInventoryItem(
+      id: 'clips-1',
+      toolId: NailCareToolId.nailClips,
+      name: 'Clips 2',
+      iconPath: AssetPaths.nailClips,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'clips-2',
+      toolId: NailCareToolId.nailClips,
+      name: 'Clips 3',
+      iconPath: AssetPaths.nailClips,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'clips-3',
+      toolId: NailCareToolId.nailClips,
+      name: 'Clips 4',
+      iconPath: AssetPaths.nailClips,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'clips-4',
+      toolId: NailCareToolId.nailClips,
+      name: 'Clips 5',
+      iconPath: AssetPaths.nailClips,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'clips-5',
+      toolId: NailCareToolId.nailClips,
+      name: 'Clips 6',
+      iconPath: AssetPaths.nailClips,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'clips-6',
+      toolId: NailCareToolId.nailClips,
+      name: 'Clips 7',
+      iconPath: AssetPaths.nailClips,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'clips-7',
+      toolId: NailCareToolId.nailClips,
+      name: 'Clips 8',
+      iconPath: AssetPaths.nailClips,
+      unlocked: false,
+    ),
+  ];
+
+  /// Spray sits ahead of the owned buffer in the nail-page drawer.
+  static const List<NailCareInventoryItem> nailFinish = <NailCareInventoryItem>[
+    spray,
+    ...buffers,
+  ];
+
+  static const List<NailCareInventoryItem> polishes = <NailCareInventoryItem>[
+    NailCareInventoryItem(
+      id: 'polish-blush',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Blush Pink',
+      iconPath: AssetPaths.polishBlush,
+      unlocked: true,
+      polishColor: 0xFFFF6BA8,
+    ),
+    NailCareInventoryItem(
+      id: 'polish-red',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Cherry Red',
+      iconPath: AssetPaths.polishRed,
+      unlocked: true,
+      polishColor: 0xFFD0123A,
+    ),
+    NailCareInventoryItem(
+      id: 'polish-nude',
+      toolId: NailCareToolId.nailPolish,
+      name: 'French Nude',
+      iconPath: AssetPaths.polishNude,
+      unlocked: true,
+      polishColor: 0xFFE6B8A2,
+    ),
+    NailCareInventoryItem(
+      id: 'polish-pearl',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Pearl',
+      iconPath: AssetPaths.polishPearl,
+      unlocked: true,
+      polishColor: 0xFFF4E4EC,
+    ),
+    NailCareInventoryItem(
+      id: 'polish-gold',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Gold Glitter',
+      iconPath: AssetPaths.polishGold,
+      unlocked: true,
+      polishColor: 0xFFD4A017,
+    ),
+  ];
+
+  static const List<NailCareInventoryItem> brushes = <NailCareInventoryItem>[
+    NailCareInventoryItem(
+      id: 'brush-0',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Nail Brush',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: true,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-1',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 2',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-2',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 3',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-3',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 4',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-4',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 5',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-5',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 6',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-6',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 7',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+    NailCareInventoryItem(
+      id: 'brush-7',
+      toolId: NailCareToolId.nailPolish,
+      name: 'Brush 8',
+      iconPath: AssetPaths.polishBrush,
+      unlocked: false,
+    ),
+  ];
+
+  /// Spray and wipe each get their own HUD box during nail-clean stages.
+  static bool splitSprayAndWipe(NailCareStage stage) =>
+      stage == NailCareStage.nailSpraying ||
+      stage == NailCareStage.nailBuffering;
+
+  static List<NailCareInventoryItem> itemsFor(NailCareStage stage) {
+    switch (stage) {
+      case NailCareStage.handCleaning:
+      case NailCareStage.handCleaningCompleted:
+        return soaps;
+      case NailCareStage.nailSpraying:
+      case NailCareStage.nailBuffering:
+      case NailCareStage.nailBufferingCompleted:
+        return nailFinish;
+      case NailCareStage.nailCutting:
+      case NailCareStage.nailCuttingCompleted:
+        return clips;
+      case NailCareStage.nailPolishing:
+      case NailCareStage.nailPolishingCompleted:
+        return polishes;
+      case NailCareStage.inactive:
+      case NailCareStage.pinkyFingerFocus:
+      case NailCareStage.ringFingerFocus:
+      case NailCareStage.middleFingerFocus:
+      case NailCareStage.indexFingerFocus:
+      case NailCareStage.thumbFingerFocus:
+      case NailCareStage.handReveal:
+        return const <NailCareInventoryItem>[];
+    }
+  }
+
+  static String kitLabelFor(NailCareStage stage) {
+    switch (stage) {
+      case NailCareStage.handCleaning:
+      case NailCareStage.handCleaningCompleted:
+        return 'Soaps';
+      case NailCareStage.nailSpraying:
+      case NailCareStage.nailBuffering:
+      case NailCareStage.nailBufferingCompleted:
+        return 'Tools';
+      case NailCareStage.nailCutting:
+      case NailCareStage.nailCuttingCompleted:
+        return 'Clips';
+      case NailCareStage.nailPolishing:
+      case NailCareStage.nailPolishingCompleted:
+        return 'Polishes';
+      case NailCareStage.inactive:
+      case NailCareStage.pinkyFingerFocus:
+      case NailCareStage.ringFingerFocus:
+      case NailCareStage.middleFingerFocus:
+      case NailCareStage.indexFingerFocus:
+      case NailCareStage.thumbFingerFocus:
+      case NailCareStage.handReveal:
+        return '';
+    }
+  }
+}

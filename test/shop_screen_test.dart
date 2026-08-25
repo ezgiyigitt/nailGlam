@@ -1,15 +1,16 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nail_glam/game/config/salon_catalog.dart';
-import 'package:nail_glam/game/progress/player_progress.dart';
-import 'package:nail_glam/ui/shop_screen.dart';
+import 'package:nail_glam/controller/player_progress_controller.dart';
+import 'package:nail_glam/model/salon_catalog.dart';
+import 'package:nail_glam/view/shop_screen.dart';
 
 void main() {
   testWidgets('shop is a swipeable showroom, not a list', (WidgetTester tester) async {
-    final progress = PlayerProgress.memory()..addCoins(800);
+    final progress = PlayerProgressController.memory();
+    progress.model.addCoins(800);
     await tester.pumpWidget(
-      MaterialApp(home: ShopScreen(progress: progress)),
+      MaterialApp(home: ShopScreen(progressController: progress)),
     );
 
     expect(find.byKey(const Key('shop-showroom')), findsOneWidget);
@@ -32,7 +33,9 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(
-      MaterialApp(home: ShopScreen(progress: PlayerProgress.memory())),
+      MaterialApp(
+        home: ShopScreen(progressController: PlayerProgressController.memory()),
+      ),
     );
     await tester.pumpAndSettle();
 

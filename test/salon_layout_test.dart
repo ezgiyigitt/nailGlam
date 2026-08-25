@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nail_glam/game/config/game_config.dart';
+import 'package:nail_glam/model/game_config.dart';
 
 /// The composition rules that make the fixed desk shot read correctly. They
 /// are cheap to break by nudging a single number, and expensive to notice.

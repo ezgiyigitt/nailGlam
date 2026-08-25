@@ -1,4 +1,7 @@
-"""Polish masks that follow the clipped nail plate, cuticle included."""
+"""Polish masks that follow each clipped nail plate, cuticle included.
+
+Mode: fill the full plate (no underfill) without dilating onto skin.
+"""
 
 from __future__ import annotations
 
@@ -22,15 +25,15 @@ def _plate(cell: Image.Image) -> np.ndarray:
     opaque = alpha > 24
     ys = np.where(opaque.any(1))[0]
     tip = int(ys.max())
-    # Columns that belong to the plate: bright run on a mid-nail row.
+
     mid = tip - 90
     bright_mid = opaque[mid] & (lum[mid] > 155)
     cols = np.where(bright_mid)[0]
     if cols.size < 12:
         cols = np.where(opaque[tip - 12] & (lum[tip - 12] > 130))[0]
     if cols.size:
-        lo = max(0, int(cols[0]) - 10)
-        hi = min(w - 1, int(cols[-1]) + 10)
+        lo = max(0, int(cols[0]) - 6)
+        hi = min(w - 1, int(cols[-1]) + 6)
         cols = np.arange(lo, hi + 1)
     keep = np.zeros((h, w), dtype=bool)
 
@@ -52,37 +55,36 @@ def _plate(cell: Image.Image) -> np.ndarray:
         if ys_col.size == 0:
             continue
         y = int(ys_col.max())
-        if y < tip - 120:
+        if y < tip - 140:
             continue
-        while y > 260:
+        while y > 200:
             if cuticle(y, x):
                 break
             keep[y, x] = True
             y -= 1
 
-    # Fill 1px holes, then close the plate.
+    # Fill horizontal gaps inside each row of the plate.
     for y in range(h):
         xs = np.where(keep[y])[0]
-        if xs.size >= 8 and xs[-1] - xs[0] < 280:
+        if xs.size >= 6 and xs[-1] - xs[0] < 320:
             keep[y, xs[0] : xs[-1] + 1] = True
     return keep
 
 
 def _mask_from_cell(cell: Image.Image) -> Image.Image:
+    """Full plate fill: close tiny holes, soft edge, never expand onto skin."""
     keep = _plate(cell)
     raw = Image.fromarray((keep.astype(np.uint8) * 255), "L")
-    closed = (
-        raw.filter(ImageFilter.MaxFilter(5))
-        .filter(ImageFilter.MaxFilter(3))
-        .filter(ImageFilter.MinFilter(3))
-    )
-    feather = closed.filter(ImageFilter.GaussianBlur(1.35))
-    alpha = np.asarray(feather)
+    # Close 1px holes without growing the silhouette.
+    closed = raw.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
+    closed_arr = np.asarray(closed) > 127
+    # Soften only inside the closed plate (no outer bloom).
+    feather = closed.filter(ImageFilter.GaussianBlur(0.7))
+    alpha = np.asarray(feather).astype(np.int16)
+    alpha = np.where(closed_arr, np.clip(alpha + 40, 0, 255), 0)
     out = np.zeros((cell.height, cell.width, 4), dtype=np.uint8)
     out[..., :3] = 255
-    out[..., 3] = np.where(alpha > 14, np.clip(alpha.astype(np.int16) + 55, 0, 255), 0).astype(
-        np.uint8
-    )
+    out[..., 3] = alpha.astype(np.uint8)
     ys, xs = np.where(out[..., 3] > 40)
     print(
         "mask bbox",
@@ -97,8 +99,19 @@ def _mask_from_cell(cell: Image.Image) -> Image.Image:
     return Image.fromarray(out, "RGBA")
 
 
+def _last_even_cell(sheet: Image.Image, frames: int = 4) -> Image.Image:
+    w, h = sheet.size
+    cell_w = w / frames
+    x0 = int(round((frames - 1) * cell_w))
+    x1 = w
+    return sheet.crop((x0, 0, x1, h))
+
+
 def _preview(cell: Image.Image, mask: Image.Image, path: Path) -> None:
-    crop = (0, 300, 384, 680)
+    h = cell.height
+    top = max(0, h // 3)
+    bottom = min(h, int(h * 0.72))
+    crop = (0, top, cell.width, bottom)
     base = cell.crop(crop).convert("RGBA")
     overlay = Image.new("RGBA", base.size, (255, 50, 110, 170))
     overlay.putalpha(mask.crop(crop).split()[-1].point(lambda v: int(v * 0.7)))
@@ -106,17 +119,40 @@ def _preview(cell: Image.Image, mask: Image.Image, path: Path) -> None:
 
 
 def main() -> None:
-    short = Image.open(OUT / "short_nail.png").convert("RGBA")
-    fourth = Image.open(OUT / "fourth_short_nail.png").convert("RGBA")
-    pinky_cell = short.crop((1152, 0, 1536, 1024))
-    ring_cell = fourth.crop((1152, 0, 1536, 1024))
-    pinky = _mask_from_cell(pinky_cell)
-    ring = _mask_from_cell(ring_cell)
-    pinky.save(OUT / "Pink_nail_mask.png")
-    ring.save(OUT / "ring_nail_mask.png")
-    _preview(pinky_cell, pinky, REPO / "tool" / "_preview_pinky_mask.png")
-    _preview(ring_cell, ring, REPO / "tool" / "_preview_ring_mask.png")
-    print("wrote masks")
+    jobs = (
+        ("short_nail.png", "Pink_nail_mask.png", "pinky"),
+        ("fourth_short_nail.png", "ring_nail_mask.png", "ring"),
+        ("third_nail_short.png", "third_nail_mask.png", "middle"),
+        ("second_nail_short.png", "second_nail_mask.png", "index"),
+        ("first_nail_short.png", "first_nail_mask.png", "thumb"),
+    )
+    plates: list[tuple[str, int, int, int, int]] = []
+    for sheet_name, mask_name, label in jobs:
+        sheet = Image.open(OUT / sheet_name).convert("RGBA")
+        cell = _last_even_cell(sheet)
+        print(f"\n=== {label} from {sheet_name} cell={cell.size} ===")
+        mask = _mask_from_cell(cell)
+        # Mask canvas must match the short-frame size used in game.
+        if mask.size != cell.size:
+            mask = mask.resize(cell.size, Image.Resampling.NEAREST)
+        mask.save(OUT / mask_name)
+        a = np.asarray(mask)[..., 3]
+        ys, xs = np.where(a > 40)
+        plates.append(
+            (
+                label,
+                int(xs.min()),
+                int(ys.min()),
+                int(xs.max() - xs.min() + 1),
+                int(ys.max() - ys.min() + 1),
+            )
+        )
+        _preview(cell, mask, REPO / "tool" / f"_preview_{label}_mask.png")
+
+    print("\nDart plate regions:")
+    for label, x, y, w, h in plates:
+        print(f"  {label}: Vector2({x}, {y}), Vector2({w}, {h})")
+    print("wrote all polish masks")
 
 
 if __name__ == "__main__":

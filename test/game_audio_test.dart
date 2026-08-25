@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nail_glam/game/audio/game_audio.dart';
+import 'package:nail_glam/controller/game_audio.dart';
 
 void main() {
   test('cues are silent no-ops until the real app starts audio', () {

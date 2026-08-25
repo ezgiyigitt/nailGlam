@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nail_glam/game/audio/game_audio.dart';
-import 'package:nail_glam/ui/settings_sheet.dart';
+import 'package:nail_glam/controller/game_audio.dart';
+import 'package:nail_glam/view/settings_sheet.dart';
 
 void main() {
   testWidgets('settings keeps music and sound on separate switches', (

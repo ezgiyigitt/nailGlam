@@ -5,15 +5,16 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nail_glam/game/components/customer_component.dart';
-import 'package:nail_glam/game/config/asset_paths.dart';
-import 'package:nail_glam/game/nail_glam_game.dart';
-import 'package:nail_glam/game/placeholder_art.dart';
-import 'package:nail_glam/ui/arrival_complete_overlay.dart';
-import 'package:nail_glam/ui/arrival_controls_overlay.dart';
-import 'package:nail_glam/ui/customer_thought_bubble_overlay.dart';
-import 'package:nail_glam/ui/home_overlay.dart';
-import 'package:nail_glam/ui/nail_care_overlay.dart';
+import 'package:nail_glam/view/components/customer_component.dart';
+import 'package:nail_glam/model/asset_paths.dart';
+import 'package:nail_glam/controller/home_controller.dart';
+import 'package:nail_glam/controller/nail_glam_game.dart';
+import 'package:nail_glam/model/placeholder_art.dart';
+import 'package:nail_glam/view/arrival_complete_overlay.dart';
+import 'package:nail_glam/view/arrival_controls_overlay.dart';
+import 'package:nail_glam/view/customer_thought_bubble_overlay.dart';
+import 'package:nail_glam/view/home_overlay.dart';
+import 'package:nail_glam/view/nail_care_overlay.dart';
 
 /// Development helper: renders key beats of the arrival to PNGs so the scene
 /// composition can be eyeballed without launching a device.
@@ -28,7 +29,7 @@ void main() {
       MaterialApp(
         home: RepaintBoundary(
           key: boundaryKey,
-          child: HomeOverlay(onPlay: () {}),
+          child: HomeOverlay(controller: HomeController.testing(onStart: () {})),
         ),
       ),
     );
@@ -82,7 +83,7 @@ void main() {
           overlayBuilderMap:
               <String, Widget Function(BuildContext, NailGlamGame)>{
                 HomeOverlay.id: (BuildContext context, NailGlamGame game) =>
-                    HomeOverlay(onPlay: game.startArrival),
+                    HomeOverlay(controller: HomeController.fromGame(game)),
                 ArrivalCompleteOverlay.id: (
                   BuildContext context,
                   NailGlamGame game,
@@ -196,7 +197,7 @@ void main() {
             overlayBuilderMap:
                 <String, Widget Function(BuildContext, NailGlamGame)>{
                   HomeOverlay.id: (BuildContext context, NailGlamGame game) =>
-                      HomeOverlay(onPlay: game.startArrival),
+                      HomeOverlay(controller: HomeController.fromGame(game)),
                   ArrivalCompleteOverlay.id:
                       (BuildContext context, NailGlamGame game) =>
                           ArrivalCompleteOverlay(onReplay: game.startArrival),

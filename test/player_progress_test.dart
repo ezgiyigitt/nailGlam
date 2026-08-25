@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nail_glam/game/config/salon_catalog.dart';
-import 'package:nail_glam/game/progress/player_progress.dart';
+import 'package:nail_glam/model/salon_catalog.dart';
+import 'package:nail_glam/model/player_progress.dart';
 
 void main() {
   test('starter furniture is already owned', () {

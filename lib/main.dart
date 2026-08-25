@@ -6,14 +6,15 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
-import 'game/audio/game_audio.dart';
-import 'game/nail_glam_game.dart';
-import 'game/progress/player_progress.dart';
-import 'ui/arrival_complete_overlay.dart';
-import 'ui/arrival_controls_overlay.dart';
-import 'ui/customer_thought_bubble_overlay.dart';
-import 'ui/home_overlay.dart';
-import 'ui/nail_care_overlay.dart';
+import 'controller/game_audio.dart';
+import 'controller/home_controller.dart';
+import 'controller/nail_glam_game.dart';
+import 'model/player_progress.dart';
+import 'view/arrival_complete_overlay.dart';
+import 'view/arrival_controls_overlay.dart';
+import 'view/customer_thought_bubble_overlay.dart';
+import 'view/home_overlay.dart';
+import 'view/nail_care_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,7 +64,7 @@ class _GameHostState extends State<GameHost> {
     super.initState();
     PlayerProgress.load()
         .then((PlayerProgress progress) {
-          _game.progress = progress;
+          _game.progress.attachModel(progress);
           if (mounted) {
             setState(() {});
           }
@@ -98,7 +99,7 @@ class _GameHostState extends State<GameHost> {
       ),
       overlayBuilderMap: <String, Widget Function(BuildContext, NailGlamGame)>{
         HomeOverlay.id: (BuildContext context, NailGlamGame game) =>
-            HomeOverlay(onPlay: game.startArrival, progress: game.progress),
+            HomeOverlay(controller: HomeController.fromGame(game)),
         ArrivalCompleteOverlay.id: (BuildContext context, NailGlamGame game) =>
             ArrivalCompleteOverlay(
               onReplay: game.startArrival,

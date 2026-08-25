@@ -70,29 +70,32 @@ flutter:
     - assets/images/shop_chair_gold.png
     - assets/images/shop_table_marble.png
     - assets/images/shop_table_premium.png
-    - assets/images/door_frame.png
-    - assets/images/door.png
     - assets/images/spray.png
     - assets/images/clips.png
     - assets/images/short_nail.png
     - assets/images/hand_wash.png
+    - assets/images/final_hand_01.png
     - assets/images/fifth_nail_clean.png
     - assets/images/fourth_nail.png
     - assets/images/fourth_short_nail.png
+    - assets/images/third_nail_clean.png
+    - assets/images/third_nail_short.png
+    - assets/images/second_nail_clean.png
+    - assets/images/second_nail_short.png
+    - assets/images/first_nail_clean.png
+    - assets/images/first_nail_short.png
     - assets/images/ring_nail_mask.png
     - assets/images/Pink_nail_mask.png
+    - assets/images/third_nail_mask.png
+    - assets/images/second_nail_mask.png
+    - assets/images/first_nail_mask.png
     - assets/images/nail_buffer.png
     - assets/images/hand_soap.png
+    - assets/images/premium_soap.png
+    - assets/images/premium_spray.png
+    - assets/images/premium_wipe.png
 
   fonts:
-    - family: PlayfairDisplay
-      fonts:
-        - asset: assets/fonts/PlayfairDisplay-Variable.ttf
-        - asset: assets/fonts/PlayfairDisplay-Italic-Variable.ttf
-          style: italic
-    - family: DMSans
-      fonts:
-        - asset: assets/fonts/DMSans-Variable.ttf
     - family: Baloo2
       fonts:
         - asset: assets/fonts/Baloo2-Variable.ttf
