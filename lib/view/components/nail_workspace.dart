@@ -1032,11 +1032,13 @@ class _WashingHand extends PositionComponent {
     int coatColor,
   ) {
     final base = ui.Color(coatColor);
+    // Masks are authored on the full hand PNG; sample the same crop window
+    // the finished-hand sprite uses so lacquer lands on the nail plates.
     final maskSrc = ui.Rect.fromLTWH(
-      0,
-      0,
-      mask.width.toDouble(),
-      mask.height.toDouble(),
+      src.left,
+      src.top,
+      src.width,
+      src.height,
     );
     final clip = ui.Paint()
       ..filterQuality = FilterQuality.high
@@ -1047,10 +1049,28 @@ class _WashingHand extends PositionComponent {
       ui.Paint()..color = ui.Color.fromRGBO(255, 255, 255, polishFill),
     );
 
+    // True lacquer body: keep the polish RGB (Color-blend washed red→pink
+    // against bright nude plates). SoftLight of the hand plate then restores
+    // natural nail shading / gloss without shifting hue.
     canvas.saveLayer(local, ui.Paint());
     canvas.drawRect(
       local.inflate(1),
-      ui.Paint()..color = base.withAlpha(252),
+      ui.Paint()..color = base.withAlpha(245),
+    );
+    canvas.drawImageRect(mask, maskSrc, local, clip);
+    canvas.restore();
+
+    canvas.saveLayer(
+      local,
+      ui.Paint()
+        ..blendMode = ui.BlendMode.softLight
+        ..color = const ui.Color(0x55FFFFFF),
+    );
+    canvas.drawImageRect(
+      sprite.image,
+      src,
+      local,
+      ui.Paint()..filterQuality = FilterQuality.high,
     );
     canvas.drawImageRect(mask, maskSrc, local, clip);
     canvas.restore();
@@ -1061,28 +1081,41 @@ class _WashingHand extends PositionComponent {
       ui.Paint()
         ..blendMode = ui.BlendMode.softLight
         ..shader = ui.Gradient.linear(
-          ui.Offset(local.center.dx - local.width * 0.12, local.top),
-          ui.Offset(local.center.dx + local.width * 0.08, local.bottom),
+          ui.Offset(local.center.dx, local.top),
+          ui.Offset(local.center.dx, local.bottom),
           const <ui.Color>[
-            ui.Color(0x00FFFFFF),
-            ui.Color(0xBBFFFFFF),
-            ui.Color(0x00FFFFFF),
+            ui.Color(0x22000000),
+            ui.Color(0x00000000),
+            ui.Color(0x33FFFFFF),
           ],
-          const <double>[0, 0.42, 1],
+          const <double>[0, 0.55, 1],
         ),
     );
     canvas.drawImageRect(mask, maskSrc, local, clip);
     canvas.restore();
 
+    final shine = ui.Rect.fromCenter(
+      center: ui.Offset(
+        local.center.dx - local.width * 0.03,
+        local.center.dy,
+      ),
+      width: local.width * 0.055,
+      height: local.height * 0.48,
+    );
     canvas.saveLayer(local, ui.Paint());
-    canvas.drawRect(
-      local,
+    canvas.drawRRect(
+      ui.RRect.fromRectAndRadius(shine, ui.Radius.circular(shine.width * 0.5)),
       ui.Paint()
-        ..blendMode = ui.BlendMode.multiply
         ..shader = ui.Gradient.linear(
-          ui.Offset(local.center.dx, local.top),
-          ui.Offset(local.center.dx, local.top + local.height * 0.35),
-          const <ui.Color>[ui.Color(0x66000000), ui.Color(0x00000000)],
+          ui.Offset(shine.center.dx, shine.top),
+          ui.Offset(shine.center.dx, shine.bottom),
+          const <ui.Color>[
+            ui.Color(0x00FFFFFF),
+            ui.Color(0x66FFFFFF),
+            ui.Color(0x33FFFFFF),
+            ui.Color(0x00FFFFFF),
+          ],
+          const <double>[0, 0.2, 0.55, 1],
         ),
     );
     canvas.drawImageRect(mask, maskSrc, local, clip);

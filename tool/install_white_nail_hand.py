@@ -25,9 +25,11 @@ HAND_ORDER = ("pinky", "ring", "middle", "pointer", "thumb")
 
 
 def _rgba_mask(alpha: np.ndarray) -> Image.Image:
-    feather = Image.fromarray(alpha.astype(np.uint8) * 255, "L").filter(
-        ImageFilter.GaussianBlur(1.2)
-    )
+    if alpha.dtype == bool or int(alpha.max()) <= 1:
+        base = (alpha.astype(np.float32) * 255).astype(np.uint8)
+    else:
+        base = alpha.astype(np.uint8)
+    feather = Image.fromarray(base, "L").filter(ImageFilter.GaussianBlur(1.2))
     a = np.asarray(feather).astype(np.uint8)
     out = np.zeros((*a.shape, 4), dtype=np.uint8)
     out[..., :3] = 255
