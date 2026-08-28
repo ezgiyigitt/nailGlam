@@ -17,7 +17,7 @@ import 'package:nail_glam/view/home_overlay.dart';
 import 'package:nail_glam/view/nail_care_overlay.dart';
 
 void main() {
-  test('Zeynep walk strip is a transparent 4-cell cycle', () async {
+  test('Asta walk strip is a transparent 4-cell cycle', () async {
     final bytes = File(
       'assets/images/${AssetPaths.customer3Walk}',
     ).readAsBytesSync();
@@ -38,7 +38,7 @@ void main() {
     expect(pixels[2], 0);
   });
 
-  testWidgets('Zeynep walk visits every cell then sits', (
+  testWidgets('Asta walk visits every cell then sits without base jump', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1080, 1920);
@@ -85,9 +85,10 @@ void main() {
     }
     expect(game.isLoaded, isTrue);
 
-    game.selectPreferredGuest(CustomerRoster.zeynep);
+    game.selectPreferredGuest(CustomerRoster.asta);
     game.startArrival();
     expect(game.guest.id, 'customer3');
+    expect(game.guest.name, 'Asta');
 
     const frame = Duration(milliseconds: 16);
     for (var i = 0; i < 40; i++) {
@@ -114,28 +115,69 @@ void main() {
     for (var i = 0; i < 4; i++) {
       final index = game.scene.customer.animationTicker?.currentIndex ?? -1;
       seen.add(index);
-      await capture('zeynep_walk_$i');
+      await capture('asta_walk_$i');
       await tester.pump(const Duration(milliseconds: 150));
     }
 
     var sawSeated = false;
-    for (var i = 0; i < 360; i++) {
+    double? prevSitY;
+    double maxSitStep = 0;
+    var sitTicks = 0;
+    final sitIndices = <int>{};
+    for (var i = 0; i < 500; i++) {
       await tester.pump(frame);
       final customer = game.scene.customer;
       final index = customer.animationTicker?.currentIndex;
       if (customer.phase == CustomerPhase.walking && index != null) {
         seen.add(index);
       }
+      if (customer.phase == CustomerPhase.sitting) {
+        sitTicks++;
+        if (index != null) {
+          sitIndices.add(index);
+        }
+        final y = customer.position.y;
+        if (prevSitY != null) {
+          final step = (y - prevSitY!).abs();
+          if (step > maxSitStep) {
+            maxSitStep = step;
+          }
+          expect(
+            y + 1.0,
+            greaterThanOrEqualTo(prevSitY!),
+            reason: 'sit drop should ease downward, not jump up',
+          );
+          expect(
+            step,
+            lessThan(4.0),
+            reason: 'sit must ease; no hard snap per tick',
+          );
+        }
+        prevSitY = y;
+      }
       sawSeated |= customer.isSeated;
-      if (sawSeated && seen.containsAll(<int>[0, 1, 2, 3])) {
+      if (sawSeated &&
+          seen.containsAll(<int>[0, 1, 2, 3]) &&
+          sitIndices.length >= 3) {
         break;
       }
     }
     if (sawSeated) {
-      await capture('zeynep_sit');
+      await capture('asta_sit');
     }
 
     expect(seen, containsAll(<int>[0, 1, 2, 3]));
     expect(sawSeated, isTrue);
+    expect(
+      sitIndices.length,
+      greaterThanOrEqualTo(3),
+      reason: 'sit strip must advance through multiple settle poses',
+    );
+    expect(
+      sitTicks,
+      greaterThanOrEqualTo(60),
+      reason: 'sit phase should last ~1s+ at 16ms ticks (slow settle)',
+    );
+    expect(maxSitStep, lessThan(4.0));
   });
 }

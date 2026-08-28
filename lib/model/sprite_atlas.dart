@@ -117,6 +117,15 @@ abstract final class SpriteAtlas {
     Vector2(230, 422),
   );
 
+  static final CharacterSheet pinkyStilettoNail = CharacterSheet.evenStrip(
+    Vector2(512, 1024),
+  );
+
+  static final SpriteRegion pinkyStilettoNailPlate = SpriteRegion(
+    Vector2.zero(),
+    Vector2(1024, 1536),
+  );
+
   /// Shared by ring / middle / index on the light hand.
   static final CharacterSheet middleCleanLight = CharacterSheet.evenStrip(
     Vector2(464, 1398),

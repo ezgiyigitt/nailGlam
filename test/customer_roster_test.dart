@@ -5,7 +5,7 @@ import 'package:nail_glam/model/guest_care_kit.dart';
 import 'package:nail_glam/model/nail_care_tools.dart';
 
 void main() {
-  test('customer1 is Lila, customer2 is Ezgi, customer3 is Zeynep', () {
+  test('customer1 is Lila, customer2 is Ezgi, customer3 is Asta', () {
     expect(CustomerRoster.customer1.id, 'customer1');
     expect(CustomerRoster.customer1.name, 'Lila');
     expect(CustomerRoster.lila.id, 'customer1');
@@ -13,14 +13,15 @@ void main() {
     expect(CustomerRoster.customer2.name, 'Ezgi');
     expect(CustomerRoster.ezgi.id, 'customer2');
     expect(CustomerRoster.customer3.id, 'customer3');
-    expect(CustomerRoster.customer3.name, 'Zeynep');
+    expect(CustomerRoster.customer3.name, 'Asta');
+    expect(CustomerRoster.asta.id, 'customer3');
     expect(CustomerRoster.zeynep.id, 'customer3');
   });
 
-  test('visits rotate Lila then Ezgi then Zeynep', () {
+  test('visits rotate Lila then Ezgi then Asta', () {
     expect(CustomerRoster.forVisit(0).name, 'Lila');
     expect(CustomerRoster.forVisit(1).name, 'Ezgi');
-    expect(CustomerRoster.forVisit(2).name, 'Zeynep');
+    expect(CustomerRoster.forVisit(2).name, 'Asta');
     expect(CustomerRoster.forVisit(3).name, 'Lila');
   });
 
@@ -35,16 +36,18 @@ void main() {
     );
     expect(CustomerRoster.customer1.introLine, contains('glam'));
     expect(CustomerRoster.customer2.introLine, contains('expensive'));
-    expect(CustomerRoster.customer3.introLine, contains('Zeynep'));
+    expect(CustomerRoster.customer3.introLine, contains('Asta'));
     expect(CustomerRoster.customer2.fullDialogue.length, 5);
     expect(CustomerRoster.customer3.fullDialogue.length, 5);
-    expect(CustomerRoster.customer3.walkFrameTime, 0.17);
-    expect(CustomerRoster.customer3.turnFrameTime, 0.16);
-    expect(CustomerRoster.customer3.sitFrameTime, 0.14);
+    expect(CustomerRoster.customer3.walkFrameTime, 0.18);
+    expect(CustomerRoster.customer3.turnFrameTime, 0.28);
+    expect(CustomerRoster.customer3.sitFrameTime, 0.34);
+    expect(CustomerRoster.customer3.sitStepTimes, <double>[0.22, 0.38, 0.42, 0.36]);
+    expect(CustomerRoster.customer3.sitDropDuringTurn, 0.18);
     expect(CustomerRoster.customer1.walkFrameTime, isNull);
   });
 
-  test('Zeynep uses dark wash and unified nail-clean art', () {
+  test('Asta uses dark wash and unified nail-clean art', () {
     final kit = GuestCareCatalog.forId(CustomerRoster.customer3.id);
     expect(kit.washAsset, AssetPaths.handWashDark);
     expect(kit.nailCleanAsset, AssetPaths.pinkyCleanDark);

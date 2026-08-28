@@ -282,6 +282,10 @@ class NailGlamGame extends FlameGame with PanDetector {
   void _onNailCareFinished() {
     progress.rewardFinishedCustomer(nailCare.coins);
     overlays.remove(NailCareOverlay.id);
+    // Rotate the appointment book so "Next customer" brings the next guest.
+    final roster = CustomerRoster.all;
+    final index = roster.indexWhere((CustomerProfile c) => c.id == guest.id);
+    preferredGuest = roster[((index < 0 ? 0 : index) + 1) % roster.length];
     overlays.add(ArrivalCompleteOverlay.id);
   }
 

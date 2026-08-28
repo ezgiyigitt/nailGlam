@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:nail_glam/model/game_config.dart';
+import 'package:nail_glam/model/asset_paths.dart';
 import 'package:nail_glam/model/nail_care_tools.dart';
 import 'package:nail_glam/controller/nail_glam_game.dart';
 import 'package:nail_glam/view/cute_hand_sim.dart';
@@ -59,6 +60,9 @@ class _NailCareHudState extends State<_NailCareHud> {
   int _shownCoins = 0;
   int _walletBump = 0;
   int _seenBurst = 0;
+  NailCareInventoryItem? _previewItem;
+  bool _previewUnlocking = false;
+  bool _previewUnlockDone = false;
 
   NailGlamGame get game => widget.game;
   Size get size => widget.size;
@@ -75,6 +79,59 @@ class _NailCareHudState extends State<_NailCareHud> {
   void dispose() {
     game.nailCare.removeListener(_onCareChanged);
     super.dispose();
+  }
+
+  void _openPreview(NailCareInventoryItem item) {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _previewItem = item;
+      _previewUnlocking = false;
+      _previewUnlockDone = false;
+    });
+  }
+
+  void _closePreview() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _previewItem = null;
+      _previewUnlocking = false;
+      _previewUnlockDone = false;
+    });
+  }
+
+  Future<void> _unlockPreview() async {
+    final item = _previewItem;
+    if (item == null || _previewUnlocking) {
+      return;
+    }
+    setState(() {
+      _previewUnlocking = true;
+      _previewUnlockDone = false;
+    });
+    final unlocked = game.nailCare.unlockItem(item.id);
+    if (!mounted) {
+      return;
+    }
+    if (!unlocked) {
+      setState(() => _previewUnlocking = false);
+      return;
+    }
+    setState(() {
+      _previewUnlockDone = true;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 1800));
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _previewItem = null;
+      _previewUnlocking = false;
+      _previewUnlockDone = false;
+    });
   }
 
   void _onCareChanged() {
@@ -265,15 +322,6 @@ class _NailCareHudState extends State<_NailCareHud> {
             bottom: 280,
             child: _SelectedToolChip(game: game, item: selected),
           ),
-        if (care.inventoryOpen)
-          Positioned.fill(
-            child: GestureDetector(
-              key: const Key('nail-care-inventory-scrim'),
-              behavior: HitTestBehavior.opaque,
-              onTap: care.closeInventory,
-              child: const ColoredBox(color: Color(0x66000000)),
-            ),
-          ),
         if (care.showsInventory)
           Positioned(
             right: 14,
@@ -286,7 +334,7 @@ class _NailCareHudState extends State<_NailCareHud> {
                         game: game,
                         drawerKey: const Key('nail-care-inventory-drawer-spray'),
                         label: 'Spray',
-                        preview: NailCareInventory.spray,
+                        preview: care.sprayDrawerPreview,
                         onTap: () =>
                             care.toggleInventory(NailCareInventory.sprays),
                       ),
@@ -308,16 +356,6 @@ class _NailCareHudState extends State<_NailCareHud> {
                     onTap: care.toggleInventory,
                   ),
           ),
-        if (care.inventoryOpen)
-          Center(
-            child: _InventoryPanel(
-              game: game,
-              title: care.panelTitle,
-              items: care.panelItems,
-              selectedId: care.selectedItemId,
-              onSelect: care.selectItem,
-            ),
-          ),
         Positioned(
           left: GameConfig.hudPad,
           right: GameConfig.hudPad,
@@ -333,14 +371,13 @@ class _NailCareHudState extends State<_NailCareHud> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: CuteHandSimCard(
-                        remaining: care.nailsRemaining,
+                        done: care.nailsDone,
                         total: care.nailsTotal,
                         snapshots: <NailDigit, DigitSimSnapshot>{
                           for (final NailDigit digit in NailDigit.values)
                             digit: care.simSnapshotFor(digit),
                         },
                         activeDigit: care.simActiveDigit,
-                        darkSkin: care.guestId == 'customer3',
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -370,6 +407,9 @@ class _NailCareHudState extends State<_NailCareHud> {
                   ],
                   _NextButton(
                     enabled: care.canAdvance,
+                    label: stage == NailCareStage.handReveal
+                        ? 'Next customer'
+                        : 'NEXT',
                     onPressed: game.advanceNailCare,
                   ),
                 ],
@@ -394,6 +434,74 @@ class _NailCareHudState extends State<_NailCareHud> {
             onComplete: _onFlightDone,
           ),
         ),
+        if (care.nailShapeChoiceOpen)
+          Positioned.fill(
+            child: Stack(
+              children: <Widget>[
+                const ModalBarrier(
+                  dismissible: false,
+                  color: Color(0x99000000),
+                ),
+                Center(
+                  child: _NailShapePicker(
+                    selected: care.nailShape,
+                    onSelected: care.selectNailShape,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (care.inventoryOpen)
+          Positioned.fill(
+            child: GestureDetector(
+              key: const Key('nail-care-inventory-scrim'),
+              behavior: HitTestBehavior.opaque,
+              onTap: care.closeInventory,
+              child: const ColoredBox(color: Color(0x66000000)),
+            ),
+          ),
+        if (care.inventoryOpen)
+          Center(
+            child: _InventoryPanel(
+              game: game,
+              title: care.panelTitle,
+              items: care.panelItems,
+              selectedId: care.selectedItemId,
+              onSelect: _openPreview,
+            ),
+          ),
+        if (_previewItem != null)
+          Positioned.fill(
+            child: Stack(
+              children: <Widget>[
+                GestureDetector(
+                  key: const Key('nail-care-preview-scrim'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _previewUnlocking ? null : _closePreview,
+                  child: const ModalBarrier(
+                    dismissible: false,
+                    color: Color(0xB8000000),
+                  ),
+                ),
+                Center(
+                  child: _InventoryPreviewSheet(
+                    game: game,
+                    item: _previewItem!,
+                    owned: care.ownsKitItem(_previewItem!),
+                    selected: care.selectedItemId == _previewItem!.id,
+                    unlocking: _previewUnlocking,
+                    unlockDone: _previewUnlockDone,
+                    onClose: _closePreview,
+                    onUnlock: _unlockPreview,
+                    onEquip: () {
+                      game.nailCare.selectItem(_previewItem!.id);
+                      _closePreview();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -446,6 +554,66 @@ class _StageCue extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: Color(0xFF6B524C),
           decoration: TextDecoration.none,
+        ),
+      ),
+    );
+  }
+}
+
+class _NailShapePicker extends StatelessWidget {
+  const _NailShapePicker({required this.selected, required this.onSelected});
+
+  final NailShape selected;
+  final ValueChanged<NailShape> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: const Key('nail-shape-picker'),
+      color: const Color(0xF7FFF8FC),
+      elevation: 18,
+      borderRadius: BorderRadius.circular(22),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Text(
+              'Choose nail shape',
+              style: TextStyle(
+                fontFamily: NailCareOverlay._displayFont,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF8A4B63),
+                decoration: TextDecoration.none,
+              ),
+            ),
+            const SizedBox(height: 10),
+            SegmentedButton<NailShape>(
+              key: const Key('nail-shape-segmented-control'),
+              segments: const <ButtonSegment<NailShape>>[
+                ButtonSegment<NailShape>(
+                  value: NailShape.square,
+                  label: Text('Square'),
+                  icon: Icon(Icons.crop_square_rounded),
+                ),
+                ButtonSegment<NailShape>(
+                  value: NailShape.almond,
+                  label: Text('Almond'),
+                  icon: Icon(Icons.change_history_rounded),
+                ),
+                ButtonSegment<NailShape>(
+                  value: NailShape.stiletto,
+                  label: Text('Stiletto'),
+                  icon: Icon(Icons.whatshot_rounded),
+                ),
+              ],
+              selected: <NailShape>{selected},
+              onSelectionChanged: (Set<NailShape> values) {
+                onSelected(values.first);
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -610,7 +778,7 @@ class _InventoryPanel extends StatelessWidget {
   final String title;
   final List<NailCareInventoryItem> items;
   final String? selectedId;
-  final ValueChanged<String> onSelect;
+  final ValueChanged<NailCareInventoryItem> onSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -660,7 +828,7 @@ class _InventoryPanel extends StatelessWidget {
               physics: const NeverScrollableScrollPhysics(),
               itemCount: items.length,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: items.length <= 5 ? 3 : 4,
+                crossAxisCount: 3,
                 mainAxisSpacing: 10,
                 crossAxisSpacing: 10,
                 childAspectRatio: 0.78,
@@ -672,7 +840,7 @@ class _InventoryPanel extends StatelessWidget {
                   item: item,
                   selected: selectedId == item.id,
                   owned: game.nailCare.ownsKitItem(item),
-                  onTap: () => onSelect(item.id),
+                  onTap: () => onSelect(item),
                 );
               },
             ),
@@ -700,6 +868,7 @@ class _InventorySlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final locked = !owned;
     return Material(
       color: selected ? const Color(0xFFFFE0EF) : const Color(0xFFFFF6EE),
       borderRadius: BorderRadius.circular(16),
@@ -717,72 +886,394 @@ class _InventorySlot extends StatelessWidget {
           ),
           child: Stack(
             children: <Widget>[
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: <Color>[
+                        Color(0x00FFFFFF),
+                        Color(0x18F48FB2),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (locked)
+                Positioned(
+                  left: -14,
+                  right: -14,
+                  top: 1,
+                  bottom: 6,
+                  child: IgnorePointer(
+                    child: Icon(
+                      Icons.lock_rounded,
+                      size: 84,
+                      color: const Color(0xFF6E5360).withOpacity(0.14),
+                    ),
+                  ),
+                ),
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(6),
                   child: FittedBox(
-                    child: owned
-                        ? AtlasToolImage(
-                            game: game,
-                            toolId: item.toolId,
-                            iconPath: item.iconPath,
-                            width: 42,
-                          )
-                        : ColorFiltered(
-                            colorFilter: const ColorFilter.matrix(<double>[
+                    child: ColorFiltered(
+                      colorFilter: locked
+                          ? const ColorFilter.matrix(<double>[
                               0.2126, 0.7152, 0.0722, 0, 0,
                               0.2126, 0.7152, 0.0722, 0, 0,
                               0.2126, 0.7152, 0.0722, 0, 0,
                               0, 0, 0, 1, 0,
-                            ]),
-                            child: AtlasToolImage(
-                              game: game,
-                              toolId: item.toolId,
-                              iconPath: item.iconPath,
-                              width: 42,
+                            ])
+                          : const ColorFilter.mode(
+                              Colors.transparent,
+                              BlendMode.srcATop,
                             ),
-                          ),
+                      child: AtlasToolImage(
+                        game: game,
+                        toolId: item.toolId,
+                        iconPath: item.iconPath,
+                        width: 42,
+                      ),
+                    ),
                   ),
                 ),
               ),
-              if (!owned)
-                Positioned.fill(
-                  child: ColoredBox(
-                    color: const Color(0x66FFFFFF),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        const Icon(
-                          Icons.lock_rounded,
-                          color: Color(0xFF6E5360),
-                          size: 22,
-                        ),
-                        if (item.unlockPrice > 0)
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              const GoldCoin(size: 14),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${item.unlockPrice}',
-                                style: const TextStyle(
-                                  fontFamily: NailCareOverlay._uiFont,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF6E5360),
-                                ),
-                              ),
-                            ],
-                          ),
-                      ],
+              Positioned(
+                left: 8,
+                right: 8,
+                bottom: 8,
+                child: _SlotPriceChip(
+                  locked: locked,
+                  price: item.unlockPrice,
+                  ownedLabel: selected ? 'Selected' : 'Owned',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SlotPriceChip extends StatelessWidget {
+  const _SlotPriceChip({
+    required this.locked,
+    required this.price,
+    required this.ownedLabel,
+  });
+
+  final bool locked;
+  final int price;
+  final String ownedLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 28,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: locked ? const Color(0xE6FFF0B8) : const Color(0xE6E7F5D8),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: locked
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                const GoldCoin(size: 15),
+                const SizedBox(width: 4),
+                Text(
+                  '$price',
+                  style: const TextStyle(
+                    fontFamily: NailCareOverlay._uiFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF6B524C),
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            )
+          : Text(
+              ownedLabel,
+              style: const TextStyle(
+                fontFamily: NailCareOverlay._uiFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF52714A),
+                decoration: TextDecoration.none,
+              ),
+            ),
+    );
+  }
+}
+
+class _InventoryPreviewSheet extends StatelessWidget {
+  const _InventoryPreviewSheet({
+    required this.game,
+    required this.item,
+    required this.owned,
+    required this.selected,
+    required this.unlocking,
+    required this.unlockDone,
+    required this.onClose,
+    required this.onUnlock,
+    required this.onEquip,
+  });
+
+  final NailGlamGame game;
+  final NailCareInventoryItem item;
+  final bool owned;
+  final bool selected;
+  final bool unlocking;
+  final bool unlockDone;
+  final VoidCallback onClose;
+  final VoidCallback onUnlock;
+  final VoidCallback onEquip;
+
+  @override
+  Widget build(BuildContext context) {
+    final buttonLabel = unlockDone
+      ? 'Purchased'
+      : owned
+        ? (selected ? 'Selected' : 'Use')
+        : 'Unlock for';
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 340),
+      child: Material(
+        color: const Color(0xFFFDF8F4),
+        elevation: 36,
+        shadowColor: const Color(0x88000000),
+        borderRadius: BorderRadius.circular(28),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  key: const Key('nail-care-preview-close'),
+                  onPressed: unlocking ? null : onClose,
+                  icon: const Icon(Icons.close_rounded),
+                  color: const Color(0xFF8A4B63),
+                  tooltip: 'Close preview',
+                ),
+              ),
+              TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0.72, end: 1),
+                duration: const Duration(milliseconds: 360),
+                curve: Curves.easeOutBack,
+                builder: (BuildContext context, double scale, Widget? child) {
+                  return Transform.rotate(
+                    angle: (1 - scale) * 0.18,
+                    child: Transform.scale(scale: scale, child: child),
+                  );
+                },
+                child: AtlasToolImage(
+                  game: game,
+                  toolId: item.toolId,
+                  iconPath: item.iconPath,
+                  width: 138,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                item.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: NailCareOverlay._displayFont,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF8A4B63),
+                  decoration: TextDecoration.none,
+                ),
+              ),
+              const SizedBox(height: 6),
+              if (!owned || unlocking || unlockDone)
+                _PurchaseButton(
+                  price: item.unlockPrice,
+                  label: buttonLabel,
+                  unlocking: unlocking,
+                  unlockDone: unlockDone,
+                  onPressed: onUnlock,
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    key: const Key('nail-care-equip'),
+                    onPressed: selected ? null : onEquip,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE56B97),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
+                    child: Text(buttonLabel),
                   ),
                 ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+class _PurchaseButton extends StatelessWidget {
+  const _PurchaseButton({
+    required this.price,
+    required this.label,
+    required this.unlocking,
+    required this.unlockDone,
+    required this.onPressed,
+  });
+
+  final int price;
+  final String label;
+  final bool unlocking;
+  final bool unlockDone;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        Positioned.fill(
+          top: 7,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+                color: unlockDone
+                  ? const Color(0xFF4F8D5A)
+                  : const Color(0xFFB74E78),
+              borderRadius: BorderRadius.circular(14),
+            ),
+          ),
+        ),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            key: const Key('nail-care-unlock'),
+            onPressed: unlocking || unlockDone ? null : onPressed,
+            style: ElevatedButton.styleFrom(
+                backgroundColor: unlockDone
+                  ? const Color(0xFF73B87D)
+                  : const Color(0xFFE56B97),
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: unlockDone
+                  ? const Color(0xFF8BC49A)
+                  : const Color(0xFFE56B97),
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+                if (!unlockDone) ...<Widget>[
+                  const SizedBox(width: 6),
+                  const GoldCoin(size: 18),
+                  const SizedBox(width: 4),
+                  Text('$price'),
+                ] else
+                  const Icon(Icons.check_rounded, size: 20),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          top: -27,
+          left: -8,
+          child: _UnlockLockVisual(
+            opening: unlocking,
+            open: unlockDone,
+          ),
+        ),
+      ],
+    );
+  }
+}
+class _UnlockLockVisual extends StatefulWidget {
+  const _UnlockLockVisual({required this.opening, required this.open});
+
+  final bool opening;
+  final bool open;
+
+  @override
+  State<_UnlockLockVisual> createState() => _UnlockLockVisualState();
+}
+
+class _UnlockLockVisualState extends State<_UnlockLockVisual>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+      value: widget.open ? 1 : 0,
+    );
+    if (widget.opening) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _UnlockLockVisual oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.opening && !oldWidget.opening) {
+      _controller.forward(from: 0);
+    } else if (widget.open && !oldWidget.open) {
+      _controller.value = 1;
+    } else if (!widget.opening && !widget.open) {
+      _controller.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (BuildContext context, Widget? child) {
+        final frame = (_controller.value * 2).round().clamp(0, 2);
+        const frameSize = 64.0;
+        return SizedBox(
+          width: frameSize,
+          height: frameSize,
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.centerLeft,
+              minWidth: frameSize * 3,
+              maxWidth: frameSize * 3,
+              minHeight: frameSize,
+              maxHeight: frameSize,
+              child: Transform.translate(
+                offset: Offset(-frame * frameSize, 0),
+                child: Image.asset(
+                  'assets/images/${AssetPaths.lock}',
+                  width: frameSize * 3,
+                  height: frameSize,
+                  fit: BoxFit.fill,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -903,58 +1394,22 @@ class _FinishedPolishRow extends StatelessWidget {
             decoration: TextDecoration.none,
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            for (final digit in painted)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(colors[digit]!),
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: const <BoxShadow>[
-                          BoxShadow(
-                            color: Color(0x33000000),
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _shortLabel[digit]!,
-                      style: const TextStyle(
-                        fontFamily: NailCareOverlay._uiFont,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF8A4B63),
-                        decoration: TextDecoration.none,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
+        const SizedBox.shrink(),
       ],
     );
   }
 }
 
 class _NextButton extends StatelessWidget {
-  const _NextButton({required this.enabled, required this.onPressed});
+  const _NextButton({
+    required this.enabled,
+    required this.onPressed,
+    this.label = 'NEXT',
+  });
 
   final bool enabled;
   final VoidCallback onPressed;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -968,11 +1423,11 @@ class _NextButton extends StatelessWidget {
           key: const Key('nail-care-next'),
           onTap: enabled ? onPressed : null,
           borderRadius: BorderRadius.circular(28),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 36, vertical: 14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 14),
             child: Text(
-              'NEXT',
-              style: TextStyle(
+              label,
+              style: const TextStyle(
                 fontFamily: NailCareOverlay._displayFont,
                 fontSize: 18,
                 letterSpacing: 1.4,

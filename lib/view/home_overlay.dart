@@ -111,7 +111,7 @@ class _HomeOverlayState extends State<HomeOverlay> {
                   colors: <Color>[
                     Color(0x14FFFFFF),
                     Color(0x00000000),
-                    Color(0x550F3D38),
+                    Color(0x66C47A6A),
                   ],
                   stops: <double>[0, 0.45, 1],
                 ),
@@ -194,12 +194,25 @@ class _HomeOverlayState extends State<HomeOverlay> {
                         ),
                       ),
                       Expanded(
-                        child: Center(
-                          child: Image.asset(
-                            'assets/images/${AssetPaths.menuLogo}',
-                            fit: BoxFit.contain,
-                            filterQuality: FilterQuality.high,
-                          ),
+                        child: LayoutBuilder(
+                          builder: (BuildContext context, BoxConstraints logo) {
+                            final maxWidth = logo.maxWidth * 0.94;
+                            final maxHeight = logo.maxHeight * 0.74;
+                            return Center(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: maxWidth,
+                                  maxHeight: maxHeight,
+                                ),
+                                child: Image.asset(
+                                  'assets/images/${AssetPaths.menuLogo}',
+                                  fit: BoxFit.contain,
+                                  filterQuality: FilterQuality.high,
+                                  gaplessPlayback: true,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                       SizedBox(height: compact ? 8 : 16),

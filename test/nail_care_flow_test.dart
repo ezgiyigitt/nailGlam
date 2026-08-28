@@ -10,6 +10,7 @@ import 'package:nail_glam/controller/nail_glam_game.dart';
 import 'package:nail_glam/model/placeholder_art.dart';
 import 'package:nail_glam/view/arrival_complete_overlay.dart';
 import 'package:nail_glam/view/arrival_controls_overlay.dart';
+import 'package:nail_glam/view/cute_hand_sim.dart';
 import 'package:nail_glam/view/customer_thought_bubble_overlay.dart';
 import 'package:nail_glam/view/home_overlay.dart';
 import 'package:nail_glam/view/nail_care_overlay.dart';
@@ -110,15 +111,19 @@ void main() {
       isTrue,
     );
     expect(NailCareInventory.soaps.first.iconPath, AssetPaths.handSoap);
-    expect(NailCareInventory.soaps[1].iconPath, AssetPaths.premiumSoap);
+    expect(NailCareInventory.soaps[1].iconPath, AssetPaths.toolSoap1);
+    expect(NailCareInventory.soaps[1].unlockPrice, greaterThan(0));
     expect(
       NailCareInventory.buffers.first.iconPath,
       AssetPaths.nailBuffer,
     );
-    expect(NailCareInventory.buffers[1].iconPath, AssetPaths.premiumWipe);
+    expect(NailCareInventory.buffers[1].iconPath, AssetPaths.toolWipe1);
+    expect(NailCareInventory.buffers[1].unlockPrice, greaterThan(0));
     expect(
       NailCareInventory.clips.every(
-        (item) => item.iconPath == AssetPaths.nailClips,
+        (item) =>
+            item.iconPath == AssetPaths.nailClips ||
+            item.iconPath.startsWith('tool_clips_'),
       ),
       isTrue,
     );
@@ -128,9 +133,12 @@ void main() {
       ),
       isTrue,
     );
-    expect(NailCareInventory.sprays, hasLength(2));
+    expect(NailCareInventory.sprays, hasLength(5));
     expect(NailCareInventory.sprays.first.iconPath, AssetPaths.nailSpray);
-    expect(NailCareInventory.sprays[1].iconPath, AssetPaths.premiumSpray);
+    expect(NailCareInventory.sprays[1].iconPath, AssetPaths.toolSpray1);
+    expect(NailCareInventory.sprays[1].unlockPrice, greaterThan(0));
+    expect(NailCareInventory.clips[1].iconPath, AssetPaths.toolClips1);
+    expect(NailCareInventory.clips[1].unlockPrice, greaterThan(0));
     expect(NailCareInventory.sprays.first.id, 'spray-0');
     expect(
       NailCareInventory.splitSprayAndWipe(NailCareStage.nailSpraying),
@@ -336,10 +344,19 @@ void main() {
 
     game.nailCare.onToolHeldOverTarget(NailCareToolId.nailClips);
     expect(game.nailCare.toolHeldOverTarget, isTrue);
-    for (var i = 0;
-        i < 200 && game.nailCare.stage != NailCareStage.nailCuttingCompleted;
-        i++) {
+    expect(game.nailCare.stage, NailCareStage.nailCutting);
+    // Holding still must not finish the cut — leave and re-touch each snip.
+    for (var i = 0; i < 40; i++) {
       await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(game.nailCare.stage, NailCareStage.nailCutting);
+
+    for (var snip = 0;
+        snip < 8 && game.nailCare.stage != NailCareStage.nailCuttingCompleted;
+        snip++) {
+      game.nailCare.onToolLeftTarget();
+      game.nailCare.onToolHeldOverTarget(NailCareToolId.nailClips);
+      await tester.pump();
     }
 
     expect(game.nailCare.stage, NailCareStage.nailCuttingCompleted);
@@ -442,10 +459,12 @@ void main() {
     await tester.tap(find.byKey(const Key('nail-care-slot-clips-0')));
     await tester.pump();
     game.nailCare.onToolHeldOverTarget(NailCareToolId.nailClips);
-    for (var i = 0;
-        i < 200 && game.nailCare.stage != NailCareStage.nailCuttingCompleted;
-        i++) {
-      await tester.pump(const Duration(milliseconds: 16));
+    for (var snip = 0;
+        snip < 8 && game.nailCare.stage != NailCareStage.nailCuttingCompleted;
+        snip++) {
+      game.nailCare.onToolLeftTarget();
+      game.nailCare.onToolHeldOverTarget(NailCareToolId.nailClips);
+      await tester.pump();
     }
     expect(game.nailCare.stage, NailCareStage.nailCuttingCompleted);
     await tester.tap(find.byKey(const Key('nail-care-next')));
@@ -478,14 +497,18 @@ void main() {
     expect(game.scene.workspace.showingFinishedHand, isTrue);
     expect(find.text('All done — look at that manicure!'), findsNothing);
     expect(find.text('Finished colors'), findsOneWidget);
+    expect(find.text('Next customer'), findsOneWidget);
+    expect(find.byType(CuteHandSimCard), findsNothing);
+    final finishedGuest = game.guest.id;
     await tester.tap(find.byKey(const Key('nail-care-next')));
     await tester.pump();
     expect(game.overlays.isActive(ArrivalCompleteOverlay.id), isTrue);
     expect(game.overlays.isActive(NailCareOverlay.id), isFalse);
+    expect(game.preferredGuest.id, isNot(finishedGuest));
   });
 
   testWidgets(
-    'clip finishes when the last short frame shows, without a second hold',
+    'clip advances one frame per touch; holding still does not finish',
     (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1080, 1920);
       tester.view.devicePixelRatio = 1;
@@ -519,16 +542,22 @@ void main() {
       await tester.pump();
 
       game.nailCare.onToolHeldOverTarget(NailCareToolId.nailClips);
+      expect(game.nailCare.stage, NailCareStage.nailCutting);
+      expect(game.nailCare.nailCleanProgress, greaterThan(0));
 
-      // Last short frame appears around ~83% of the cut timer. Completing
-      // should unlock Next without holding through the remaining dead time.
-      final cutMs =
-          (GameConfig.nailCareCutHoldDuration * 0.88 * 1000).round();
-      for (var i = 0; i < (cutMs / 16).ceil() + 4; i++) {
+      // Stay on the nail without leaving — no further snips.
+      for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 16));
-        if (game.nailCare.stage == NailCareStage.nailCuttingCompleted) {
-          break;
-        }
+      }
+      expect(game.nailCare.stage, NailCareStage.nailCutting);
+
+      for (var snip = 0;
+          snip < 8 &&
+              game.nailCare.stage != NailCareStage.nailCuttingCompleted;
+          snip++) {
+        game.nailCare.onToolLeftTarget();
+        game.nailCare.onToolHeldOverTarget(NailCareToolId.nailClips);
+        await tester.pump();
       }
 
       expect(game.nailCare.stage, NailCareStage.nailCuttingCompleted);
@@ -542,7 +571,7 @@ void main() {
     },
   );
 
-  testWidgets('Zeynep clips and polishes every digit', (
+  testWidgets('Asta clips and polishes every digit', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1080, 1920);
@@ -572,7 +601,7 @@ void main() {
     game.debugOpenNailCare();
     await tester.pump();
 
-    expect(game.guest.name, 'Zeynep');
+    expect(game.guest.name, 'Asta');
     expect(game.nailCare.guestId, 'customer3');
     expect(game.nailCare.careKit.allowsCutAndPolish(NailDigit.pinky), isTrue);
     expect(game.nailCare.careKit.allowsCutAndPolish(NailDigit.ring), isTrue);
@@ -702,10 +731,12 @@ void main() {
     await tester.tap(find.byKey(const Key('nail-care-slot-clips-0')));
     await tester.pump();
     game.nailCare.onToolHeldOverTarget(NailCareToolId.nailClips);
-    for (var i = 0;
-        i < 200 && game.nailCare.stage != NailCareStage.nailCuttingCompleted;
-        i++) {
-      await tester.pump(const Duration(milliseconds: 16));
+    for (var snip = 0;
+        snip < 8 && game.nailCare.stage != NailCareStage.nailCuttingCompleted;
+        snip++) {
+      game.nailCare.onToolLeftTarget();
+      game.nailCare.onToolHeldOverTarget(NailCareToolId.nailClips);
+      await tester.pump();
     }
     expect(game.nailCare.stage, NailCareStage.nailCuttingCompleted);
     expect(game.nailCare.simSnapshotFor(NailDigit.pinky).isShort, isTrue);
@@ -785,10 +816,12 @@ Future<void> _finishCurrentNail(
   await tester.tap(find.byKey(const Key('nail-care-slot-clips-0')));
   await tester.pump();
   game.nailCare.onToolHeldOverTarget(NailCareToolId.nailClips);
-  for (var i = 0;
-      i < 200 && game.nailCare.stage != NailCareStage.nailCuttingCompleted;
-      i++) {
-    await tester.pump(const Duration(milliseconds: 16));
+  for (var snip = 0;
+      snip < 8 && game.nailCare.stage != NailCareStage.nailCuttingCompleted;
+      snip++) {
+    game.nailCare.onToolLeftTarget();
+    game.nailCare.onToolHeldOverTarget(NailCareToolId.nailClips);
+    await tester.pump();
   }
   await tester.tap(find.byKey(const Key('nail-care-next')));
   await tester.pump();

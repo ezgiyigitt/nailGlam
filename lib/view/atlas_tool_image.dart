@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
+import 'package:nail_glam/model/asset_paths.dart';
 import 'package:nail_glam/model/nail_care_tools.dart';
 import 'package:nail_glam/model/sprite_atlas.dart';
 import 'package:nail_glam/controller/nail_glam_game.dart';
@@ -30,6 +31,14 @@ class _AtlasToolImageState extends State<AtlasToolImage> {
   ui.Image? _image;
 
   SpriteRegion get _region {
+    final image = _image;
+    // Custom shop skins are full-bleed PNGs; atlas crops only fit the starter art.
+    if (image != null && !_usesStarterAtlasCrop) {
+      return SpriteRegion(
+        Vector2.zero(),
+        Vector2(image.width.toDouble(), image.height.toDouble()),
+      );
+    }
     switch (widget.toolId) {
       case NailCareToolId.handSoap:
         return SpriteAtlas.handSoap;
@@ -40,7 +49,6 @@ class _AtlasToolImageState extends State<AtlasToolImage> {
       case NailCareToolId.nailClips:
         return _clamped(SpriteAtlas.nailClips);
       case NailCareToolId.nailPolish:
-        final image = _image;
         // Standalone bottle PNGs are wide; the brush sheet is a narrow stick.
         if (image != null && image.width > 200) {
           return SpriteRegion(
@@ -49,6 +57,21 @@ class _AtlasToolImageState extends State<AtlasToolImage> {
           );
         }
         return _clamped(SpriteAtlas.polishBrush);
+    }
+  }
+
+  bool get _usesStarterAtlasCrop {
+    switch (widget.toolId) {
+      case NailCareToolId.handSoap:
+        return widget.iconPath == AssetPaths.handSoap;
+      case NailCareToolId.nailSpray:
+        return widget.iconPath == AssetPaths.nailSpray;
+      case NailCareToolId.nailBuffer:
+        return widget.iconPath == AssetPaths.nailBuffer;
+      case NailCareToolId.nailClips:
+        return widget.iconPath == AssetPaths.nailClips;
+      case NailCareToolId.nailPolish:
+        return widget.iconPath == AssetPaths.polishBrush;
     }
   }
 

@@ -72,7 +72,9 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
   late final ui.Image _ringSprayImage;
   late final ui.Image _ringWipeImage;
   late final ui.Image _shortNailImage;
+  late final ui.Image _stilettoNailImage;
   late final ui.Image _polishMask;
+  late final ui.Image _stilettoPolishMask;
   late final ui.Image _ringCleanImage;
   late final ui.Image _ringShortImage;
   late final ui.Image _ringPolishMask;
@@ -215,6 +217,8 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
     _pinkySprayImage = await game.images.load(AssetPaths.fifthNailSpray);
     _pinkyWipeImage = await game.images.load(AssetPaths.fifthNailWipe);
     _shortNailImage = await game.images.load(AssetPaths.shortNail);
+    _stilettoNailImage = await game.images.load(AssetPaths.pinkyStilettoNail);
+    _stilettoPolishMask = await game.images.load(AssetPaths.nailMaskLightPinky);
     _polishMask = await _loadOptional(
       AssetPaths.pinkNailMask,
       width: 384,
@@ -374,6 +378,15 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
     _washFrames = _spritesFor(washImage, kit.washSheet);
     _finalFrames = _spritesFor(finalImage, kit.finalHandSheet);
     resetCare();
+  }
+
+  /// Match the nail-care plate wood/marble/pink to the equipped salon desk.
+  Future<void> applyTableSurface(String assetPath) async {
+    final path = assetPath.isEmpty ? AssetPaths.tableSurface : assetPath;
+    final image = game.images.containsKey(path)
+        ? game.images.fromCache(path)
+        : await game.images.load(path);
+    _fill.setImage(image);
   }
 
   Future<ui.Image> _loadOptional(
@@ -776,6 +789,23 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
     _applyOpacity(_opacity);
   }
 
+  void setNailShape(NailShape shape) {
+    if (shape == NailShape.stiletto) {
+      _pinky.shortImage = _stilettoNailImage;
+      _pinky.shortSheet = SpriteAtlas.pinkyStilettoNail;
+      _pinky.polishMask = _stilettoPolishMask;
+      _pinky.polishPlate = SpriteAtlas.pinkyStilettoNailPlate;
+      _pinky.shortAlign = Vector2.zero();
+    } else {
+      _pinky.shortImage = _shortNailImage;
+      _pinky.shortSheet = SpriteAtlas.shortNail;
+      _pinky.polishMask = _polishMask;
+      _pinky.polishPlate = SpriteAtlas.pinkNailPlate;
+      _pinky.shortAlign = SpriteAtlas.shortNailAlign;
+    }
+    _pinky.useShortSheet();
+  }
+
   void setShortNailFrame(int index) {
     _pinky.useShortSheet();
     _pinky.setFrame(index);
@@ -847,8 +877,12 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
 class _TableSurfaceFill extends PositionComponent {
   _TableSurfaceFill(this._image);
 
-  final ui.Image _image;
+  ui.Image _image;
   double opacity = 0;
+
+  void setImage(ui.Image image) {
+    _image = image;
+  }
 
   @override
   void render(ui.Canvas canvas) {
@@ -975,13 +1009,18 @@ class _WashingHand extends PositionComponent {
       );
     }
     _paintFinishedPolish(canvas, frames[from], fromAlign);
+    // Soft wrist falloff so the silhouette doesn't stamp a hard rectangle
+    // onto the tabletop. Finished hands need a longer fade than wash frames.
+    final wristEnd = polishFill > 0
+        ? (GameConfig.workspaceHandWristFadeEnd * 1.55).clamp(0.2, 0.42)
+        : GameConfig.workspaceHandWristFadeEnd;
     canvas.drawRect(
       rect,
       ui.Paint()
         ..blendMode = ui.BlendMode.dstIn
         ..shader = ui.Gradient.linear(
           ui.Offset(size.x / 2, 0),
-          ui.Offset(size.x / 2, size.y * GameConfig.workspaceHandWristFadeEnd),
+          ui.Offset(size.x / 2, size.y * wristEnd),
           const <ui.Color>[ui.Color(0x00FFFFFF), ui.Color(0xFFFFFFFF)],
         ),
     );
@@ -1018,22 +1057,21 @@ class _WashingHand extends PositionComponent {
       coats.add(MapEntry<ui.Image, int>(polishMask!, polishColor));
     }
     for (final coat in coats) {
-      _paintLacquerCoat(canvas, sprite, local, src, coat.key, coat.value);
+      _paintLacquerCoat(canvas, local, src, coat.key, coat.value);
     }
     canvas.restore();
   }
 
+  /// Glossy lacquer clipped strictly to the nail mask — never paints the hand
+  /// bounding box (that caused the pink/dark square on the wood).
   void _paintLacquerCoat(
     ui.Canvas canvas,
-    Sprite sprite,
     ui.Rect local,
     ui.Rect src,
     ui.Image mask,
     int coatColor,
   ) {
     final base = ui.Color(coatColor);
-    // Masks are authored on the full hand PNG; sample the same crop window
-    // the finished-hand sprite uses so lacquer lands on the nail plates.
     final maskSrc = ui.Rect.fromLTWH(
       src.left,
       src.top,
@@ -1043,82 +1081,101 @@ class _WashingHand extends PositionComponent {
     final clip = ui.Paint()
       ..filterQuality = FilterQuality.high
       ..blendMode = ui.BlendMode.dstIn;
+    final sample = ui.Paint()..filterQuality = FilterQuality.high;
 
     canvas.saveLayer(
       local,
       ui.Paint()..color = ui.Color.fromRGBO(255, 255, 255, polishFill),
     );
 
-    // True lacquer body: keep the polish RGB (Color-blend washed red→pink
-    // against bright nude plates). SoftLight of the hand plate then restores
-    // natural nail shading / gloss without shifting hue.
-    canvas.saveLayer(local, ui.Paint());
-    canvas.drawRect(
-      local.inflate(1),
-      ui.Paint()..color = base.withAlpha(245),
+    // 1) Solid lacquer body from mask pixels only.
+    canvas.drawImageRect(
+      mask,
+      maskSrc,
+      local,
+      ui.Paint()
+        ..filterQuality = FilterQuality.high
+        ..colorFilter = ui.ColorFilter.mode(base, ui.BlendMode.modulate),
     );
-    canvas.drawImageRect(mask, maskSrc, local, clip);
-    canvas.restore();
 
+    // 2) Wet depth: darker at cuticle, lighter at free edge — mask-clipped.
     canvas.saveLayer(
       local,
-      ui.Paint()
-        ..blendMode = ui.BlendMode.softLight
-        ..color = const ui.Color(0x55FFFFFF),
+      ui.Paint()..blendMode = ui.BlendMode.softLight,
     );
-    canvas.drawImageRect(
-      sprite.image,
-      src,
-      local,
-      ui.Paint()..filterQuality = FilterQuality.high,
-    );
-    canvas.drawImageRect(mask, maskSrc, local, clip);
-    canvas.restore();
-
-    canvas.saveLayer(local, ui.Paint());
     canvas.drawRect(
       local,
       ui.Paint()
-        ..blendMode = ui.BlendMode.softLight
         ..shader = ui.Gradient.linear(
           ui.Offset(local.center.dx, local.top),
           ui.Offset(local.center.dx, local.bottom),
-          const <ui.Color>[
-            ui.Color(0x22000000),
-            ui.Color(0x00000000),
-            ui.Color(0x33FFFFFF),
+          <ui.Color>[
+            ui.Color.fromRGBO(0, 0, 0, 0.45),
+            ui.Color.fromRGBO(40, 20, 30, 0.08),
+            ui.Color.fromRGBO(255, 255, 255, 0.35),
+            ui.Color.fromRGBO(255, 240, 250, 0.12),
           ],
-          const <double>[0, 0.55, 1],
+          const <double>[0.0, 0.38, 0.72, 1.0],
         ),
     );
     canvas.drawImageRect(mask, maskSrc, local, clip);
     canvas.restore();
 
-    final shine = ui.Rect.fromCenter(
-      center: ui.Offset(
-        local.center.dx - local.width * 0.03,
-        local.center.dy,
-      ),
-      width: local.width * 0.055,
-      height: local.height * 0.48,
+    // 3) Diagonal studio specular across the hand; each nail keeps its slice.
+    canvas.saveLayer(
+      local,
+      ui.Paint()..blendMode = ui.BlendMode.plus,
     );
-    canvas.saveLayer(local, ui.Paint());
-    canvas.drawRRect(
-      ui.RRect.fromRectAndRadius(shine, ui.Radius.circular(shine.width * 0.5)),
+    canvas.drawRect(
+      local,
       ui.Paint()
         ..shader = ui.Gradient.linear(
-          ui.Offset(shine.center.dx, shine.top),
-          ui.Offset(shine.center.dx, shine.bottom),
+          ui.Offset(local.left, local.top),
+          ui.Offset(local.right, local.bottom),
           const <ui.Color>[
             ui.Color(0x00FFFFFF),
-            ui.Color(0x66FFFFFF),
-            ui.Color(0x33FFFFFF),
+            ui.Color(0x00FFFFFF),
+            ui.Color(0xCCFFFFFF),
+            ui.Color(0x55FFFFFF),
+            ui.Color(0x00FFFFFF),
             ui.Color(0x00FFFFFF),
           ],
-          const <double>[0, 0.2, 0.55, 1],
+          const <double>[0.0, 0.40, 0.47, 0.52, 0.60, 1.0],
         ),
     );
     canvas.drawImageRect(mask, maskSrc, local, clip);
+    canvas.restore();
+
+    // 4) Narrow secondary highlight for gel-polish punch.
+    canvas.saveLayer(
+      local,
+      ui.Paint()..blendMode = ui.BlendMode.screen,
+    );
+    canvas.drawRect(
+      local,
+      ui.Paint()
+        ..shader = ui.Gradient.linear(
+          ui.Offset(local.left + local.width * 0.2, local.top),
+          ui.Offset(local.left + local.width * 0.55, local.bottom),
+          const <ui.Color>[
+            ui.Color(0x00FFFFFF),
+            ui.Color(0x88FFFFFF),
+            ui.Color(0x00FFFFFF),
+          ],
+          const <double>[0.35, 0.5, 0.65],
+        ),
+    );
+    canvas.drawImageRect(mask, maskSrc, local, clip);
+    canvas.restore();
+
+    // 5) Soft rim so polish meets skin without a black sticker edge.
+    canvas.saveLayer(
+      local,
+      ui.Paint()
+        ..blendMode = ui.BlendMode.srcATop
+        ..color = const ui.Color(0x33FFFFFF),
+    );
+    canvas.drawImageRect(mask, maskSrc, local, sample);
     canvas.restore();
 
     canvas.restore();
@@ -1294,6 +1351,10 @@ class _LockedFingerCloseup extends PositionComponent {
       polishPlate.size.y / polishMask.height * dest.height,
     );
     final base = ui.Color(polishColor);
+    final maskPaint = ui.Paint()
+      ..filterQuality = FilterQuality.high
+      ..blendMode = ui.BlendMode.dstIn
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 0.6);
 
     canvas.saveLayer(dest, ui.Paint());
 
@@ -1307,9 +1368,7 @@ class _LockedFingerCloseup extends PositionComponent {
       polishMask,
       maskSrc,
       dest,
-      ui.Paint()
-        ..filterQuality = FilterQuality.high
-        ..blendMode = ui.BlendMode.dstIn,
+      maskPaint,
     );
     canvas.restore();
 
@@ -1334,9 +1393,7 @@ class _LockedFingerCloseup extends PositionComponent {
       polishMask,
       maskSrc,
       dest,
-      ui.Paint()
-        ..filterQuality = FilterQuality.high
-        ..blendMode = ui.BlendMode.dstIn,
+      maskPaint,
     );
     canvas.restore();
 
@@ -1369,9 +1426,7 @@ class _LockedFingerCloseup extends PositionComponent {
       polishMask,
       maskSrc,
       dest,
-      ui.Paint()
-        ..filterQuality = FilterQuality.high
-        ..blendMode = ui.BlendMode.dstIn,
+      maskPaint,
     );
     canvas.restore();
 

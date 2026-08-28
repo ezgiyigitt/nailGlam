@@ -27,6 +27,7 @@ class CustomerComponent extends SpriteAnimationComponent {
     required this.walk,
     required this.turn,
     required this.sit,
+    this.sitDropDuringTurn = 1.0,
     this.walkFrameAlign,
     this.turnFrameAlign,
     this.sitFrameAlign,
@@ -35,6 +36,9 @@ class CustomerComponent extends SpriteAnimationComponent {
   SpriteAnimation walk;
   SpriteAnimation turn;
   SpriteAnimation sit;
+
+  /// Fraction of [GameConfig.customerSitDrop] applied while turning (0–1).
+  double sitDropDuringTurn;
   
   List<Vector2>? walkFrameAlign;
   List<Vector2>? turnFrameAlign;
@@ -59,6 +63,7 @@ class CustomerComponent extends SpriteAnimationComponent {
     required SpriteAnimation walk,
     required SpriteAnimation turn,
     required SpriteAnimation sit,
+    double sitDropDuringTurn = 1.0,
     List<Vector2>? walkFrameAlign,
     List<Vector2>? turnFrameAlign,
     List<Vector2>? sitFrameAlign,
@@ -66,6 +71,7 @@ class CustomerComponent extends SpriteAnimationComponent {
     this.walk = walk;
     this.turn = turn;
     this.sit = sit;
+    this.sitDropDuringTurn = sitDropDuringTurn.clamp(0.0, 1.0);
     this.walkFrameAlign = walkFrameAlign;
     this.turnFrameAlign = turnFrameAlign;
     this.sitFrameAlign = sitFrameAlign;
@@ -82,20 +88,47 @@ class CustomerComponent extends SpriteAnimationComponent {
   double get baseY => position.y + size.y;
 
   double get _topY {
+    final drop = GameConfig.customerSitDrop;
+    final turnShare = sitDropDuringTurn.clamp(0.0, 1.0);
     switch (_phase) {
       case CustomerPhase.sitting:
+        final sitT = Curves.easeInOut.transform(_animationProgress());
+        return GameConfig.customerTopY +
+            drop * (turnShare + (1.0 - turnShare) * sitT);
       case CustomerPhase.seatedIdle:
       case CustomerPhase.handsToTable:
-        return GameConfig.customerTopY + GameConfig.customerSitDrop;
+        return GameConfig.customerTopY + drop;
       case CustomerPhase.turning:
-        final ticker = animationTicker;
-        final total = ticker?.totalDuration() ?? 0;
-        final t = total <= 0 ? 1.0 : ((ticker?.clock ?? 0) / total).clamp(0.0, 1.0);
-        return GameConfig.customerTopY + GameConfig.customerSitDrop * t;
+        final turnT = Curves.easeInOut.transform(_animationProgress());
+        return GameConfig.customerTopY + drop * turnShare * turnT;
       case CustomerPhase.walking:
       case CustomerPhase.offstage:
         return GameConfig.customerTopY;
     }
+  }
+
+  /// Elapsed fraction across the whole current strip (not per-frame clock).
+  double _animationProgress() {
+    final ticker = animationTicker;
+    final anim = animation;
+    if (ticker == null || anim == null || anim.frames.isEmpty) {
+      return 1.0;
+    }
+    final frames = anim.frames;
+    final total = frames.fold<double>(0, (sum, frame) => sum + frame.stepTime);
+    if (total <= 0) {
+      return 1.0;
+    }
+    final index = ticker.currentIndex.clamp(0, frames.length - 1);
+    var elapsed = 0.0;
+    for (var i = 0; i < index; i++) {
+      elapsed += frames[i].stepTime;
+    }
+    elapsed += ticker.clock.clamp(0.0, frames[index].stepTime);
+    if (ticker.done()) {
+      return 1.0;
+    }
+    return (elapsed / total).clamp(0.0, 1.0);
   }
 
   @override

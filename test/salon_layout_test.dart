@@ -10,9 +10,10 @@ void main() {
     expect(GameConfig.priorityTable, lessThan(GameConfig.priorityWorkspace));
   });
 
-  test('the desk covers the bottom edge of the frame', () {
-    expect(GameConfig.tableWidth, GameConfig.worldWidth);
+  test('the desk covers the station shot without side gaps', () {
+    expect(GameConfig.tableMinWidth, GameConfig.viewWidth);
     expect(GameConfig.tableBottomY, GameConfig.viewHeight);
+    expect(GameConfig.tableHeight, greaterThan(0));
   });
 
   test('the waist crop stays hidden behind the desk', () {
@@ -23,12 +24,22 @@ void main() {
     );
   });
 
-  test('the chair back stays below her head', () {
+  test('the chair crest clears the desk behind her shoulders', () {
     final chairTop = GameConfig.chairBottomY - GameConfig.chairHeight;
     expect(
       chairTop,
-      greaterThan(GameConfig.customerTopY + 280),
-      reason: 'a taller backrest reads as a second character behind her',
+      lessThan(GameConfig.tableWoodY),
+      reason: 'backrest must rise above the desktop so shop chairs read',
+    );
+    expect(
+      chairTop,
+      greaterThan(GameConfig.customerTopY),
+      reason: 'crest stays below the top of her head cell',
+    );
+    expect(
+      chairTop,
+      lessThan(GameConfig.customerTopY + 220),
+      reason: 'crest peeks by her shoulders, not as a second giant head',
     );
   });
 

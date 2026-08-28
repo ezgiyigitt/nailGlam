@@ -57,11 +57,11 @@ abstract final class GameConfig {
   /// all line up here, so the camera move reads as a straight push in.
   static const double stationX = worldWidth / 2;
 
-  /// Full salon width. The delivered desk is a free-standing object with
-  /// visible corners; stretching it across the world is what keeps wood on
-  /// every camera x, from the left edge of the frame to the right.
-  static const double tableWidth = worldWidth;
+  /// Desk height in world units. Width follows each table's native aspect so
+  /// shop desks stop looking stretched; never narrower than [viewWidth] so the
+  /// station shot has no side gaps. Side fill is the apron behind the desk.
   static const double tableHeight = 920;
+  static const double tableMinWidth = viewWidth;
 
   /// Bottom-anchored on the very bottom edge of the frame.
   static const double tableBottomY = viewHeight;
@@ -81,11 +81,11 @@ abstract final class GameConfig {
   // Chair
   // ---------------------------------------------------------------------
 
-  /// The chair stands behind the customer at the station. Most of it is buried
-  /// behind the desk; what reads on screen is a short padded back around her
-  /// mid-torso, not a fan that towers over her head.
-  static const double chairHeight = 940;
-  static const double chairBottomY = 2140;
+  /// Tall enough that the backrest crest clears the desk art and reads behind
+  /// the customer's shoulders. Bottom sits slightly below the frame so legs
+  /// stay buried; only the padded back matters on screen.
+  static const double chairHeight = 1280;
+  static const double chairBottomY = 2050;
   static const double chairX = stationX - 20;
 
   // ---------------------------------------------------------------------

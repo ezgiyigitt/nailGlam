@@ -63,6 +63,11 @@ flutter:
     - assets/audio/
     - assets/images/
     - assets/images/table_surface.png
+    - assets/images/table_surface_marble.png
+    - assets/images/table_surface_premium.png
+    - assets/images/salon_room.png
+    - assets/images/nail_glam_logo.png
+    - assets/images/nail_glam_logo_entry.png
     - assets/images/customer_emotion.png
     - assets/images/manicure_pillow.png
     - assets/images/manicure_pillow_top.png
@@ -94,6 +99,28 @@ flutter:
     - assets/images/premium_soap.png
     - assets/images/premium_spray.png
     - assets/images/premium_wipe.png
+    - assets/images/tool_soap_1.png
+    - assets/images/tool_soap_2.png
+    - assets/images/tool_soap_3.png
+    - assets/images/tool_soap_4.png
+    - assets/images/tool_spray_1.png
+    - assets/images/tool_spray_2.png
+    - assets/images/tool_spray_3.png
+    - assets/images/tool_spray_4.png
+    - assets/images/tool_spray_5.png
+    - assets/images/tool_spray_6.png
+    - assets/images/tool_wipe_1.png
+    - assets/images/tool_wipe_2.png
+    - assets/images/tool_wipe_3.png
+    - assets/images/tool_wipe_4.png
+    - assets/images/tool_wipe_5.png
+    - assets/images/tool_wipe_6.png
+    - assets/images/tool_clips_1.png
+    - assets/images/tool_clips_2.png
+    - assets/images/tool_clips_3.png
+    - assets/images/tool_clips_4.png
+    - assets/images/tool_clips_5.png
+    - assets/images/tool_clips_6.png
 
   fonts:
     - family: Baloo2

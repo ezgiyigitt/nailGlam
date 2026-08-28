@@ -12,7 +12,7 @@ class HowToPlayDemoPainter extends CustomPainter {
     required this.localT,
   });
 
-  /// 0 wash, 1 spray, 2 wipe, 3 clip.
+  /// 0 wash, 1 spray, 2 wipe, 3 clip, 4 polish.
   final int scene;
   final double localT;
 
@@ -25,8 +25,10 @@ class HowToPlayDemoPainter extends CustomPainter {
         _mist(canvas, size);
       case 2:
         _sheen(canvas, size);
-      default:
+      case 3:
         _snipFlash(canvas, size);
+      default:
+        _polishGloss(canvas, size);
     }
   }
 
@@ -85,6 +87,33 @@ class HowToPlayDemoPainter extends CustomPainter {
     }
   }
 
+  void _polishGloss(Canvas canvas, Size size) {
+    final fill = Curves.easeInOut.transform(localT);
+    final nail = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(size.width * 0.5, size.height * 0.34),
+        width: size.width * 0.16,
+        height: size.height * 0.22 * fill.clamp(0.12, 1.0),
+      ),
+      const Radius.circular(18),
+    );
+    canvas.drawRRect(
+      nail,
+      Paint()..color = Color.fromRGBO(255, 255, 255, 0.14 + 0.18 * fill),
+    );
+    if (fill > 0.35) {
+      final glossX = size.width * (0.42 + 0.16 * math.sin(localT * math.pi * 2));
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(glossX, size.height * 0.30),
+          width: 10,
+          height: size.height * 0.12,
+        ),
+        Paint()..color = const Color(0x55FFFFFF),
+      );
+    }
+  }
+
   @override
   bool shouldRepaint(HowToPlayDemoPainter oldDelegate) =>
       oldDelegate.scene != scene || oldDelegate.localT != localT;
@@ -98,6 +127,8 @@ class HowToPlayFingerPainter extends CustomPainter {
     required this.frame,
     this.nextFrame,
     this.fade = 0,
+    this.polishFill = 0,
+    this.polishColor = const Color(0xFFD0123A),
   });
 
   final ui.Image image;
@@ -105,6 +136,8 @@ class HowToPlayFingerPainter extends CustomPainter {
   final int frame;
   final int? nextFrame;
   final double fade;
+  final double polishFill;
+  final Color polishColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -118,8 +151,44 @@ class HowToPlayFingerPainter extends CustomPainter {
     if (to != null && fade > 0.01 && to != frame) {
       _blit(canvas, dest, to, fade);
     }
+    if (polishFill > 0.01) {
+      _paintPolish(canvas, dest);
+    }
     paintHowToPlayStumpFade(canvas, dest);
     canvas.restore();
+  }
+
+  void _paintPolish(Canvas canvas, Rect dest) {
+    final fill = polishFill.clamp(0.0, 1.0);
+    // Plate sits on the lower tip of the pinned finger art.
+    final plate = Rect.fromCenter(
+      center: Offset(
+        dest.center.dx,
+        dest.top + dest.height * 0.58,
+      ),
+      width: dest.width * 0.22,
+      height: dest.height * 0.28,
+    );
+    final growing = Rect.fromLTWH(
+      plate.left,
+      plate.top,
+      plate.width,
+      plate.height * math.max(0.12, fill),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(growing, const Radius.circular(22)),
+      Paint()..color = polishColor.withValues(alpha: 0.92),
+    );
+    if (fill > 0.45) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(plate.center.dx - plate.width * 0.12, plate.top + plate.height * 0.28),
+          width: plate.width * 0.28,
+          height: plate.height * 0.35,
+        ),
+        Paint()..color = const Color(0x55FFFFFF),
+      );
+    }
   }
 
   Rect _dest(Size size) {
@@ -159,7 +228,9 @@ class HowToPlayFingerPainter extends CustomPainter {
       oldDelegate.sheet != sheet ||
       oldDelegate.frame != frame ||
       oldDelegate.nextFrame != nextFrame ||
-      oldDelegate.fade != fade;
+      oldDelegate.fade != fade ||
+      oldDelegate.polishFill != polishFill ||
+      oldDelegate.polishColor != polishColor;
 }
 
 /// Softens the cut edge of a hand or finger so it does not read as a hard crop.

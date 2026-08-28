@@ -15,6 +15,8 @@ class CustomerProfile {
     this.walkFrameTime,
     this.turnFrameTime,
     this.sitFrameTime,
+    this.sitStepTimes,
+    this.sitDropDuringTurn,
     this.walkFrameAlign,
     this.turnFrameAlign,
     this.sitFrameAlign,
@@ -34,6 +36,13 @@ class CustomerProfile {
     /// Seconds per turn/sit cell. Null uses shared salon timing.
     final double? turnFrameTime;
     final double? sitFrameTime;
+
+  /// Optional per-cell sit durations. When set, overrides [sitFrameTime].
+  final List<double>? sitStepTimes;
+
+  /// How much of [GameConfig.customerSitDrop] happens while turning (0–1).
+  /// The rest eases in during the sit animation. Null = full drop during turn.
+  final double? sitDropDuringTurn;
 
   /// Optional per-frame pixel shifts to correct art misalignment.
   final List<Vector2>? walkFrameAlign;
@@ -82,15 +91,21 @@ abstract final class CustomerRoster {
 
   static const CustomerProfile customer3 = CustomerProfile(
     id: 'customer3',
-    name: 'Zeynep',
+    name: 'Asta',
     walkAsset: AssetPaths.customer3Walk,
     turnAsset: AssetPaths.customer3Turn,
     sitAsset: AssetPaths.customer3Sit,
     emotionAsset: AssetPaths.customer3Emotion,
-    introLine: "Hi — I'm Zeynep. Let's start fresh.",
-    walkFrameTime: 0.17,
-    turnFrameTime: 0.16,
-    sitFrameTime: 0.14,
+    introLine: "Hi — I'm Asta. Let's start fresh.",
+    // Arm-only walk: a touch slower so the swing reads clearly.
+    walkFrameTime: 0.22,
+    // Gradual turn: longer holds so profile → 3/4 → front does not snap.
+    turnFrameTime: 0.34,
+    sitFrameTime: 0.38,
+    // Hold mid/settle poses longer so the chair drop reads as a slow sit.
+    sitStepTimes: <double>[0.28, 0.42, 0.48, 0.40],
+    // Most of the chair settle happens during sit, not mid-turn.
+    sitDropDuringTurn: 0.15,
     dialogueLines: <String>[
       'First, a gentle hand wash.',
       'Then clean each nail, one by one.',
@@ -101,6 +116,7 @@ abstract final class CustomerRoster {
 
   static const CustomerProfile lila = customer1;
   static const CustomerProfile ezgi = customer2;
+  static const CustomerProfile asta = customer3;
   static const CustomerProfile zeynep = customer3;
 
   static const List<CustomerProfile> all = <CustomerProfile>[

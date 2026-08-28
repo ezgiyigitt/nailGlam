@@ -127,24 +127,78 @@ def rebuild_turn() -> None:
     _save_strip(frames, "customer3_turn.png")
 
 
+def _bottom_y(cell: Image.Image) -> int:
+    alpha = np.asarray(cell.split()[3]) > 8
+    rows = np.flatnonzero(alpha.any(axis=1))
+    return int(rows[-1]) if rows.size else cell.height - 1
+
+
+def _trim_for_head_lock(
+    figure: Image.Image,
+    *,
+    head_x: int,
+    head_y: int,
+    max_bottom: int,
+) -> Image.Image:
+    """Crop legs/feet so a head-locked paste never drops below [max_bottom]."""
+    src_x, src_y = _head_anchor(figure)
+    paste_y = head_y - src_y
+    alpha = np.asarray(figure.split()[3]) > 8
+    rows = np.flatnonzero(alpha.any(axis=1))
+    if rows.size == 0:
+        return figure
+    overflow = paste_y + int(rows[-1]) - max_bottom
+    if overflow <= 0:
+        return figure
+    crop_h = figure.height - overflow
+    min_h = src_y + max(12, figure.height // 6)
+    if crop_h < min_h:
+        crop_h = min_h
+    return figure.crop((0, 0, figure.width, crop_h))
+
+
+def _place_head_locked(
+    figure: Image.Image,
+    *,
+    head_x: int,
+    head_y: int,
+    max_bottom: int,
+) -> Image.Image:
+    trimmed = _trim_for_head_lock(
+        figure,
+        head_x=head_x,
+        head_y=head_y,
+        max_bottom=max_bottom,
+    )
+    return _place_on_cell(trimmed, head_x=head_x, head_y=head_y)
+
+
 def rebuild_sit() -> None:
     turn = _load_cells("customer3_turn")
     sit_cells = _load_cells("customer3_sit")
-    standing = turn[2]
-    seated = _crop_content(sit_cells[0])
-    hands = _crop_content(sit_cells[1])
+    standing = turn[3]
+    seated = _crop_content(sit_cells[1])
+    hands = _crop_content(sit_cells[3])
 
     head_x, head_y, head_h = _head_metrics(standing)
+    target_bottom = _bottom_y(standing)
     seated = _scale_to_head(seated, head_h)
     hands = _scale_to_head(hands, head_h)
 
     frames = [
         standing,
-        _place_on_cell(seated, head_x=head_x, head_y=head_y + 3),
-        _place_on_cell(seated, head_x=head_x, head_y=head_y + 6),
-        _place_on_cell(hands, head_x=head_x, head_y=head_y + 8),
+        _place_head_locked(seated, head_x=head_x, head_y=head_y + 2, max_bottom=target_bottom),
+        _place_head_locked(seated, head_x=head_x, head_y=head_y + 4, max_bottom=target_bottom),
+        _place_head_locked(hands, head_x=head_x, head_y=head_y + 6, max_bottom=target_bottom),
     ]
     _save_strip(frames, "customer3_sit.png")
+
+    bottoms = [_bottom_y(frame) for frame in frames]
+    heads = [_head_metrics(frame)[:2] for frame in frames]
+    bottom_spread = max(bottoms) - min(bottoms)
+    head_y_spread = max(h[1] for h in heads) - min(h[1] for h in heads)
+    assert bottom_spread <= 2, f"sit bottom jumped: {bottoms}"
+    assert head_y_spread <= 6, f"sit head jumped: {heads}"
 
 
 def preview() -> None:
@@ -162,7 +216,7 @@ def main() -> None:
     rebuild_turn()
     rebuild_sit()
     preview()
-    print("repaired Zeynep arrival strips")
+    print("repaired Asta arrival strips")
 
 
 if __name__ == "__main__":

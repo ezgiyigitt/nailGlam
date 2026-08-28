@@ -3,6 +3,8 @@ import 'asset_paths.dart';
 /// Discrete steps of the manicure minigame that follows the salon arrival.
 enum NailDigit { pinky, ring, middle, pointer, thumb }
 
+enum NailShape { square, almond, stiletto }
+
 extension NailDigitFlow on NailDigit {
   String get label => switch (this) {
         NailDigit.pinky => 'pinky',
@@ -35,6 +37,7 @@ class DigitSimSnapshot {
     this.cleanProgress = 0,
     this.cutFrame = 0,
     this.polishColor,
+    this.shape,
   });
 
   /// Spray + wipe, 0 dirty → 1 fully clean.
@@ -46,6 +49,8 @@ class DigitSimSnapshot {
   /// Painted lacquer, if this digit has been polished.
   final int? polishColor;
 
+  final NailShape? shape;
+
   bool get isClean => cleanProgress >= 1;
   bool get isShort => cutFrame >= 3;
   bool get isPolished => polishColor != null;
@@ -54,11 +59,13 @@ class DigitSimSnapshot {
     double? cleanProgress,
     int? cutFrame,
     int? polishColor,
+    NailShape? shape,
   }) {
     return DigitSimSnapshot(
       cleanProgress: cleanProgress ?? this.cleanProgress,
       cutFrame: cutFrame ?? this.cutFrame,
       polishColor: polishColor ?? this.polishColor,
+      shape: shape ?? this.shape,
     );
   }
 }
@@ -124,7 +131,7 @@ abstract final class NailCareCatalog {
     NailCareTool(
       id: NailCareToolId.nailSpray,
       name: 'Nail Spray',
-      iconPath: AssetPaths.nailSpray,
+      iconPath: AssetPaths.toolSpray1,
       hint: 'Spray onto nail',
       requiredStage: NailCareStage.nailSpraying,
       interaction: NailCareInteraction.dragOntoTarget,
@@ -196,58 +203,49 @@ abstract final class NailCareInventory {
     NailCareInventoryItem(
       id: 'soap-0',
       toolId: NailCareToolId.handSoap,
-      name: 'Hand Soap',
-      iconPath: AssetPaths.handSoap,
+      name: 'Basic Soap',
+      iconPath: AssetPaths.toolSoap1,
       unlocked: true,
     ),
     NailCareInventoryItem(
       id: 'soap-1',
       toolId: NailCareToolId.handSoap,
-      name: 'Premium Soap',
-      iconPath: AssetPaths.premiumSoap,
+      name: 'Silver Soap',
+      iconPath: AssetPaths.toolSoap2,
       unlocked: false,
+      unlockPrice: 150,
     ),
     NailCareInventoryItem(
       id: 'soap-2',
       toolId: NailCareToolId.handSoap,
-      name: 'Soap 3',
-      iconPath: AssetPaths.handSoap,
+      name: 'Rose Gold Soap',
+      iconPath: AssetPaths.toolSoap3,
       unlocked: false,
+      unlockPrice: 250,
     ),
     NailCareInventoryItem(
       id: 'soap-3',
       toolId: NailCareToolId.handSoap,
-      name: 'Soap 4',
-      iconPath: AssetPaths.handSoap,
+      name: 'Bow Soap',
+      iconPath: AssetPaths.toolSoap4,
       unlocked: false,
+      unlockPrice: 400,
     ),
     NailCareInventoryItem(
       id: 'soap-4',
       toolId: NailCareToolId.handSoap,
-      name: 'Soap 5',
-      iconPath: AssetPaths.handSoap,
+      name: 'Jewel Soap',
+      iconPath: AssetPaths.toolSoap5,
       unlocked: false,
+      unlockPrice: 600,
     ),
     NailCareInventoryItem(
       id: 'soap-5',
       toolId: NailCareToolId.handSoap,
-      name: 'Soap 6',
-      iconPath: AssetPaths.handSoap,
+      name: 'Crown Soap',
+      iconPath: AssetPaths.toolSoap6,
       unlocked: false,
-    ),
-    NailCareInventoryItem(
-      id: 'soap-6',
-      toolId: NailCareToolId.handSoap,
-      name: 'Soap 7',
-      iconPath: AssetPaths.handSoap,
-      unlocked: false,
-    ),
-    NailCareInventoryItem(
-      id: 'soap-7',
-      toolId: NailCareToolId.handSoap,
-      name: 'Soap 8',
-      iconPath: AssetPaths.handSoap,
-      unlocked: false,
+      unlockPrice: 800,
     ),
   ];
 
@@ -255,18 +253,52 @@ abstract final class NailCareInventory {
     id: 'spray-0',
     toolId: NailCareToolId.nailSpray,
     name: 'Nail Spray',
-    iconPath: AssetPaths.nailSpray,
+    iconPath: AssetPaths.toolSpray1,
     unlocked: true,
   );
 
+  /// Six shop skins: slot 0 owned, 1–5 locked until bought with coins.
   static const List<NailCareInventoryItem> sprays = <NailCareInventoryItem>[
     spray,
     NailCareInventoryItem(
       id: 'spray-1',
       toolId: NailCareToolId.nailSpray,
-      name: 'Premium Spray',
-      iconPath: AssetPaths.premiumSpray,
+      name: 'Cleanse Spray',
+      iconPath: AssetPaths.toolSpray2,
       unlocked: false,
+      unlockPrice: 100,
+    ),
+    NailCareInventoryItem(
+      id: 'spray-2',
+      toolId: NailCareToolId.nailSpray,
+      name: 'Pink Mist',
+      iconPath: AssetPaths.toolSpray3,
+      unlocked: false,
+      unlockPrice: 200,
+    ),
+    NailCareInventoryItem(
+      id: 'spray-3',
+      toolId: NailCareToolId.nailSpray,
+      name: 'Bow Spray',
+      iconPath: AssetPaths.toolSpray4,
+      unlocked: false,
+      unlockPrice: 350,
+    ),
+    NailCareInventoryItem(
+      id: 'spray-4',
+      toolId: NailCareToolId.nailSpray,
+      name: 'Crystal Spray',
+      iconPath: AssetPaths.toolSpray5,
+      unlocked: false,
+      unlockPrice: 500,
+    ),
+    NailCareInventoryItem(
+      id: 'spray-5',
+      toolId: NailCareToolId.nailSpray,
+      name: 'Royal Spray',
+      iconPath: AssetPaths.toolSpray6,
+      unlocked: false,
+      unlockPrice: 750,
     ),
   ];
 
@@ -281,51 +313,42 @@ abstract final class NailCareInventory {
     NailCareInventoryItem(
       id: 'buffer-1',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Premium Wipe',
-      iconPath: AssetPaths.premiumWipe,
+      name: 'Soft Wipe',
+      iconPath: AssetPaths.toolWipe1,
       unlocked: false,
+      unlockPrice: 150,
     ),
     NailCareInventoryItem(
       id: 'buffer-2',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Wipe 3',
-      iconPath: AssetPaths.nailBuffer,
+      name: 'Ribbon Wipe',
+      iconPath: AssetPaths.toolWipe2,
       unlocked: false,
+      unlockPrice: 250,
     ),
     NailCareInventoryItem(
       id: 'buffer-3',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Wipe 4',
-      iconPath: AssetPaths.nailBuffer,
+      name: 'Quilt Wipe',
+      iconPath: AssetPaths.toolWipe3,
       unlocked: false,
+      unlockPrice: 400,
     ),
     NailCareInventoryItem(
       id: 'buffer-4',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Wipe 5',
-      iconPath: AssetPaths.nailBuffer,
+      name: 'Crystal Wipe',
+      iconPath: AssetPaths.toolWipe5,
       unlocked: false,
+      unlockPrice: 600,
     ),
     NailCareInventoryItem(
       id: 'buffer-5',
       toolId: NailCareToolId.nailBuffer,
-      name: 'Wipe 6',
-      iconPath: AssetPaths.nailBuffer,
+      name: 'Royal Wipe',
+      iconPath: AssetPaths.toolWipe6,
       unlocked: false,
-    ),
-    NailCareInventoryItem(
-      id: 'buffer-6',
-      toolId: NailCareToolId.nailBuffer,
-      name: 'Wipe 7',
-      iconPath: AssetPaths.nailBuffer,
-      unlocked: false,
-    ),
-    NailCareInventoryItem(
-      id: 'buffer-7',
-      toolId: NailCareToolId.nailBuffer,
-      name: 'Wipe 8',
-      iconPath: AssetPaths.nailBuffer,
-      unlocked: false,
+      unlockPrice: 800,
     ),
   ];
 
@@ -333,58 +356,49 @@ abstract final class NailCareInventory {
     NailCareInventoryItem(
       id: 'clips-0',
       toolId: NailCareToolId.nailClips,
-      name: 'Nail Clips',
-      iconPath: AssetPaths.nailClips,
+      name: 'Basic Clips',
+      iconPath: AssetPaths.toolClips1,
       unlocked: true,
     ),
     NailCareInventoryItem(
       id: 'clips-1',
       toolId: NailCareToolId.nailClips,
-      name: 'Clips 2',
-      iconPath: AssetPaths.nailClips,
+      name: 'Silver Clips',
+      iconPath: AssetPaths.toolClips2,
       unlocked: false,
+      unlockPrice: 150,
     ),
     NailCareInventoryItem(
       id: 'clips-2',
       toolId: NailCareToolId.nailClips,
-      name: 'Clips 3',
-      iconPath: AssetPaths.nailClips,
+      name: 'Rose Gold Clips',
+      iconPath: AssetPaths.toolClips3,
       unlocked: false,
+      unlockPrice: 250,
     ),
     NailCareInventoryItem(
       id: 'clips-3',
       toolId: NailCareToolId.nailClips,
-      name: 'Clips 4',
-      iconPath: AssetPaths.nailClips,
+      name: 'Bow Clips',
+      iconPath: AssetPaths.toolClips4,
       unlocked: false,
+      unlockPrice: 400,
     ),
     NailCareInventoryItem(
       id: 'clips-4',
       toolId: NailCareToolId.nailClips,
-      name: 'Clips 5',
-      iconPath: AssetPaths.nailClips,
+      name: 'Jewel Clips',
+      iconPath: AssetPaths.toolClips5,
       unlocked: false,
+      unlockPrice: 600,
     ),
     NailCareInventoryItem(
       id: 'clips-5',
       toolId: NailCareToolId.nailClips,
-      name: 'Clips 6',
-      iconPath: AssetPaths.nailClips,
+      name: 'Crown Clips',
+      iconPath: AssetPaths.toolClips6,
       unlocked: false,
-    ),
-    NailCareInventoryItem(
-      id: 'clips-6',
-      toolId: NailCareToolId.nailClips,
-      name: 'Clips 7',
-      iconPath: AssetPaths.nailClips,
-      unlocked: false,
-    ),
-    NailCareInventoryItem(
-      id: 'clips-7',
-      toolId: NailCareToolId.nailClips,
-      name: 'Clips 8',
-      iconPath: AssetPaths.nailClips,
-      unlocked: false,
+      unlockPrice: 800,
     ),
   ];
 

@@ -21,7 +21,8 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
   late final PositionComponent room;
   late final SpriteComponent chair;
   late final SpriteComponent table;
-  late final PositionComponent pillow;
+  late final SpriteComponent pillow;
+  late final RectangleComponent tableApron;
 
   bool _sceneryHidden = false;
 
@@ -43,7 +44,7 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
     table = _buildTable(tableImage);
     chair = _buildChair(chairImage);
     pillow = _buildPillow(pillowImage);
-    final apron = _buildTableApron();
+    tableApron = _buildTableApron();
 
     for (final guest in CustomerRoster.all) {
       _guestKits[guest.id] = await _loadGuestKit(guest);
@@ -55,7 +56,7 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
       sit: starter.sit,
     );
 
-    await addAll(<Component>[room, chair, customer, apron, table, pillow]);
+    await addAll(<Component>[room, chair, customer, tableApron, table, pillow]);
 
     workspace = NailWorkspace();
     await add(workspace);
@@ -71,6 +72,7 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
       walk: kit.walk,
       turn: kit.turn,
       sit: kit.sit,
+      sitDropDuringTurn: guest.sitDropDuringTurn ?? 1.0,
       walkFrameAlign: guest.walkFrameAlign,
       turnFrameAlign: guest.turnFrameAlign,
       sitFrameAlign: guest.sitFrameAlign,
@@ -99,6 +101,7 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
         sitImage,
         frames: PlaceholderArt.customerSitFrames,
         stepTime: guest.sitFrameTime ?? GameConfig.customerSitFrameTime,
+        stepTimes: guest.sitStepTimes,
         loop: false,
       ),
     );
@@ -106,24 +109,50 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
 
   /// Swaps the station chair and desk to whatever the player has equipped.
   Future<void> applyEquippedFurniture(PlayerProgress progress) async {
-    final chairPath =
-        SalonCatalog.byId(progress.equippedChairId).previewAsset ??
-        AssetPaths.salonChair;
-    final tablePath =
-        SalonCatalog.byId(progress.equippedTableId).previewAsset ??
-        AssetPaths.nailTable;
+    final chairItem = SalonCatalog.byId(progress.equippedChairId);
+    final tableItem = SalonCatalog.byId(progress.equippedTableId);
+    final chairPath = chairItem.previewAsset ?? AssetPaths.salonChair;
+    final tablePath = tableItem.previewAsset ?? AssetPaths.nailTable;
     final chairImage = await _image(chairPath, PlaceholderArt.chair);
     final tableImage = await _image(tablePath, PlaceholderArt.table);
     if (!isMounted) {
       return;
     }
-    chair.sprite = Sprite(chairImage);
-    final chairAspect = chairImage.width / chairImage.height;
-    chair.size.setValues(
-      GameConfig.chairHeight * chairAspect,
-      GameConfig.chairHeight,
+    _fitChair(chairImage, chairItem);
+    _fitTable(tableImage, tableItem);
+    _snapPillowToTable(tableItem);
+    await workspace.applyTableSurface(
+      tableItem.surfaceAsset ?? AssetPaths.tableSurface,
     );
-    table.sprite = Sprite(tableImage);
+  }
+
+  void _fitChair(ui.Image image, ShopItem item) {
+    final height = item.chairHeight ?? GameConfig.chairHeight;
+    final bottomY = item.chairBottomY ?? GameConfig.chairBottomY;
+    final aspect = image.width / image.height;
+    chair.sprite = Sprite(image);
+    chair.size.setValues(height * aspect, height);
+    chair.position.setValues(GameConfig.chairX, bottomY);
+  }
+
+  void _fitTable(ui.Image image, [ShopItem? item]) {
+    final aspect = image.width / image.height;
+    final width = (GameConfig.tableHeight * aspect)
+        .clamp(GameConfig.tableMinWidth, GameConfig.worldWidth)
+        .toDouble();
+    table.sprite = Sprite(image);
+    table.size.setValues(width, GameConfig.tableHeight);
+    table.position.setValues(GameConfig.stationX, GameConfig.tableBottomY);
+    final apronColor = item?.apronColor ?? SalonCatalog.starterTable.apronColor;
+    tableApron.paint.color = ui.Color(apronColor);
+  }
+
+  void _snapPillowToTable(ShopItem tableItem) {
+    final y = tableItem.pillowCenterY ?? GameConfig.salonPillowCenterY;
+    pillow.position.setValues(
+      GameConfig.stationX + tableItem.pillowOffsetX,
+      y,
+    );
   }
 
   /// Returns the scene to its pre-arrival state.
@@ -172,9 +201,7 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
     );
   }
 
-  /// Solid wood slab behind the detailed desk, so a camera wider than the
-  /// artwork never shows floor beside the corners.
-  PositionComponent _buildTableApron() {
+  RectangleComponent _buildTableApron() {
     return RectangleComponent(
       size: Vector2(
         GameConfig.worldWidth,
@@ -182,22 +209,27 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
       ),
       position: Vector2(0, GameConfig.tableWoodY),
       anchor: Anchor.topLeft,
-      paint: ui.Paint()..color = const ui.Color(0xFFC45420),
+      paint: ui.Paint()
+        ..color = ui.Color(SalonCatalog.starterTable.apronColor),
       priority: GameConfig.priorityTable - 1,
     );
   }
 
   SpriteComponent _buildTable(ui.Image image) {
+    final aspect = image.width / image.height;
+    final width = (GameConfig.tableHeight * aspect)
+        .clamp(GameConfig.tableMinWidth, GameConfig.worldWidth)
+        .toDouble();
     return SpriteComponent(
       sprite: Sprite(image),
-      size: Vector2(GameConfig.tableWidth, GameConfig.tableHeight),
+      size: Vector2(width, GameConfig.tableHeight),
       position: Vector2(GameConfig.stationX, GameConfig.tableBottomY),
       anchor: Anchor.bottomCenter,
       priority: GameConfig.priorityTable,
     );
   }
 
-  PositionComponent _buildPillow(ui.Image image) {
+  SpriteComponent _buildPillow(ui.Image image) {
     return SpriteComponent(
       sprite: Sprite(image),
       size: Vector2(GameConfig.salonPillowWidth, GameConfig.salonPillowHeight),
@@ -216,14 +248,30 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
     ui.Image image, {
     required int frames,
     required double stepTime,
+    List<double>? stepTimes,
     bool loop = true,
   }) {
+    final textureSize = Vector2(
+      image.width / frames,
+      image.height.toDouble(),
+    );
+    if (stepTimes != null && stepTimes.length == frames) {
+      return SpriteAnimation.fromFrameData(
+        image,
+        SpriteAnimationData.variable(
+          amount: frames,
+          stepTimes: stepTimes,
+          textureSize: textureSize,
+          loop: loop,
+        ),
+      );
+    }
     return SpriteAnimation.fromFrameData(
       image,
       SpriteAnimationData.sequenced(
         amount: frames,
         stepTime: stepTime,
-        textureSize: Vector2(image.width / frames, image.height.toDouble()),
+        textureSize: textureSize,
         loop: loop,
       ),
     );

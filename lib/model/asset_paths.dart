@@ -9,7 +9,7 @@
 /// anything in code.
 abstract final class AssetPaths {
   static const String menuBackground = 'background.png';
-  static const String menuLogo = 'nail_glam_logo.png';
+  static const String menuLogo = 'nail_glam_logo_entry.png';
   static const String menuStart = 'btn_start.png';
   static const String menuHowToPlay = 'btn_how_to_play.png';
 
@@ -51,6 +51,8 @@ abstract final class AssetPaths {
   static const String customer3Emotion = 'customer3_emotion.png';
 
   static const String tableSurface = 'table_surface.png';
+  static const String tableSurfaceMarble = 'table_surface_marble.png';
+  static const String tableSurfacePremium = 'table_surface_premium.png';
 
   /// Pink quilted armrest on the salon desk, player-facing.
   static const String manicurePillow = 'manicure_pillow.png';
@@ -62,6 +64,33 @@ abstract final class AssetPaths {
   static const String premiumSoap = 'premium_soap.png';
   static const String premiumSpray = 'premium_spray.png';
   static const String premiumWipe = 'premium_wipe.png';
+
+  static const String toolSoap1 = 'tool_soap_1.png';
+  static const String toolSoap2 = 'tool_soap_2.png';
+  static const String toolSoap3 = 'tool_soap_3.png';
+  static const String toolSoap4 = 'tool_soap_4.png';
+  static const String toolSoap5 = 'tool_soap_5.png';
+  static const String toolSoap6 = 'tool_soap_6.png';
+  static const String toolSpray1 = 'tool_spray_1.png';
+  static const String toolSpray2 = 'tool_spray_2.png';
+  static const String toolSpray3 = 'tool_spray_3.png';
+  static const String toolSpray4 = 'tool_spray_4.png';
+  static const String toolSpray5 = 'tool_spray_5.png';
+  static const String toolSpray6 = 'tool_spray_6.png';
+  static const String toolWipe1 = 'tool_wipe_1.png';
+  static const String toolWipe2 = 'tool_wipe_2.png';
+  static const String toolWipe3 = 'tool_wipe_3.png';
+  static const String toolWipe4 = 'tool_wipe_4.png';
+  static const String toolWipe5 = 'tool_wipe_5.png';
+  static const String toolWipe6 = 'tool_wipe_6.png';
+  static const String toolClips1 = 'tool_clips_1.png';
+  static const String toolClips2 = 'tool_clips_2.png';
+  static const String toolClips3 = 'tool_clips_3.png';
+  static const String toolClips4 = 'tool_clips_4.png';
+  static const String toolClips5 = 'tool_clips_5.png';
+  static const String toolClips6 = 'tool_clips_6.png';
+  static const String lock = 'lock.png';
+
   static const String handWash = 'hand_wash.png';
   static const String handWashDark = 'hand_wash_dark.png';
 
@@ -121,6 +150,8 @@ abstract final class AssetPaths {
   static const String pinkyCleanLight = 'pinky_clean_light.png';
   static const String pinkyShortLight = 'pinky_short_light.png';
   static const String pinkyNailMaskLight = 'pinky_nail_mask_light.png';
+  static const String pinkyStilettoNail = 'pinky_stiletto_nail.png';
+  static const String nailMaskLightPinky = 'nail_mask_light_pinky.png';
   static const String middleCleanLight = 'middle_clean_light.png';
   static const String middleShortLight = 'middle_short_light.png';
   static const String middleNailMaskLight = 'middle_nail_mask_light.png';
@@ -139,6 +170,8 @@ abstract final class AssetPaths {
   /// is deliberately absent: it falls back to generated placeholders.
   static const List<String> all = <String>[
     tableSurface,
+    tableSurfaceMarble,
+    tableSurfacePremium,
     manicurePillow,
     manicurePillowTop,
     customerEmotion,
@@ -154,6 +187,29 @@ abstract final class AssetPaths {
     premiumSoap,
     premiumSpray,
     premiumWipe,
+    toolSoap1,
+    toolSoap2,
+    toolSoap3,
+    toolSoap4,
+    toolSoap5,
+    toolSoap6,
+    toolSpray1,
+    toolSpray2,
+    toolSpray3,
+    toolSpray4,
+    toolSpray5,
+    toolSpray6,
+    toolWipe1,
+    toolWipe2,
+    toolWipe3,
+    toolWipe4,
+    toolClips1,
+    toolClips2,
+    toolClips3,
+    toolClips4,
+    toolClips5,
+    toolClips6,
+    lock,
     handWash,
     handWashDark,
     finalHand,
@@ -210,6 +266,8 @@ abstract final class AssetPaths {
     pinkyCleanLight,
     pinkyShortLight,
     pinkyNailMaskLight,
+    pinkyStilettoNail,
+    nailMaskLightPinky,
     middleCleanLight,
     middleShortLight,
     middleNailMaskLight,

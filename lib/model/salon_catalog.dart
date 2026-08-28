@@ -9,6 +9,12 @@ class ShopItem {
     required this.price,
     this.starter = false,
     this.previewAsset,
+    this.surfaceAsset,
+    this.pillowCenterY,
+    this.pillowOffsetX = 0,
+    this.chairHeight,
+    this.chairBottomY,
+    this.apronColor = 0xFFC45420,
   });
 
   final String id;
@@ -20,6 +26,22 @@ class ShopItem {
   /// Optional image under `assets/images/`. Locked pieces stay silhouettes
   /// until their art is approved.
   final String? previewAsset;
+
+  /// Nail-care close-up tabletop texture for this desk. Tables only.
+  final String? surfaceAsset;
+
+  /// World Y for the salon pink armrest on this desk. Null = default.
+  final double? pillowCenterY;
+
+  /// Horizontal nudge for the armrest relative to station centre.
+  final double pillowOffsetX;
+
+  /// Optional chair scale overrides (shop chairs with taller backs).
+  final double? chairHeight;
+  final double? chairBottomY;
+
+  /// Apron fill behind desk edges when the camera pans past the art.
+  final int apronColor;
 }
 
 /// The upgrade tree. Starter pieces are already owned; everything else is a
@@ -52,6 +74,9 @@ abstract final class SalonCatalog {
     slot: ShopSlot.chair,
     price: 500,
     previewAsset: 'shop_chair_pink.png',
+    // Tall fan back — keep the crest above the desk line.
+    chairHeight: 1380,
+    chairBottomY: 2080,
   );
   static const ShopItem goldChair = ShopItem(
     id: 'chair_gold',
@@ -59,6 +84,8 @@ abstract final class SalonCatalog {
     slot: ShopSlot.chair,
     price: 1500,
     previewAsset: 'shop_chair_gold.png',
+    chairHeight: 1360,
+    chairBottomY: 2070,
   );
 
   static const ShopItem starterTable = ShopItem(
@@ -68,6 +95,9 @@ abstract final class SalonCatalog {
     price: 0,
     starter: true,
     previewAsset: 'nail_table.png',
+    surfaceAsset: 'table_surface.png',
+    // Champagne frame + blush apron behind desk edges when the camera pans.
+    apronColor: 0xFFE8C4B8,
   );
   static const ShopItem marbleTable = ShopItem(
     id: 'table_marble',
@@ -75,6 +105,10 @@ abstract final class SalonCatalog {
     slot: ShopSlot.table,
     price: 1000,
     previewAsset: 'shop_table_marble.png',
+    surfaceAsset: 'table_surface_marble.png',
+    // Marble desktop sits higher in the art; keep the armrest on the slab.
+    pillowCenterY: 1384,
+    apronColor: 0xFFF2B8C8,
   );
   static const ShopItem premiumTable = ShopItem(
     id: 'table_premium',
@@ -82,6 +116,9 @@ abstract final class SalonCatalog {
     slot: ShopSlot.table,
     price: 3000,
     previewAsset: 'shop_table_premium.png',
+    surfaceAsset: 'table_surface_premium.png',
+    pillowCenterY: 1419,
+    apronColor: 0xFFE8A0B4,
   );
 
   static const ShopItem smallPlant = ShopItem(

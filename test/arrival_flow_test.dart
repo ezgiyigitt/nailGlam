@@ -116,12 +116,22 @@ void main() {
         if (customer.phase == CustomerPhase.sitting ||
             customer.phase == CustomerPhase.seatedIdle ||
             customer.phase == CustomerPhase.handsToTable) {
-          lockedSeatY ??= customer.position.y;
-          expect(
-            customer.position.y,
-            closeTo(lockedSeatY, 0.001),
-            reason: 'world y moved after the sit transition on frame $i',
-          );
+          // Sit may ease the chair drop across frames; only freeze after idle.
+          if (customer.phase == CustomerPhase.seatedIdle ||
+              customer.phase == CustomerPhase.handsToTable) {
+            lockedSeatY ??= customer.position.y;
+            expect(
+              customer.position.y,
+              closeTo(lockedSeatY, 0.001),
+              reason: 'world y moved after seated idle on frame $i',
+            );
+          } else if (lockedSeatY != null) {
+            expect(
+              customer.position.y,
+              greaterThanOrEqualTo(lockedSeatY - 0.001),
+              reason: 'sit drop reversed on frame $i',
+            );
+          }
         }
 
         if (customer.phase == CustomerPhase.seatedIdle && !completedDialogue) {
