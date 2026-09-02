@@ -5,6 +5,9 @@ enum NailDigit { pinky, ring, middle, pointer, thumb }
 
 enum NailShape { square, almond, stiletto }
 
+/// Which limb the guest asked to have cared for this visit.
+enum CareTarget { hand, foot }
+
 extension NailDigitFlow on NailDigit {
   String get label => switch (this) {
         NailDigit.pinky => 'pinky',
@@ -88,6 +91,24 @@ enum NailCareStage {
   nailPolishingCompleted,
   /// All five nails done — zoom out to the finished hand.
   handReveal,
+
+  /// Foot flow: whole-foot soap wash, mirrors [handCleaning].
+  footCleaning,
+  footCleaningCompleted,
+  /// Foot flow: whole-foot toenail spray + wipe, mirrors [nailSpraying]/[nailBuffering].
+  footNailSpraying,
+  footNailBuffering,
+  footNailBufferingCompleted,
+  /// Foot flow: whole-foot toenail cutting, mirrors [nailCutting]. Every toe
+  /// shortens together — no per-digit loop, no shape choice.
+  footNailCutting,
+  footNailCuttingCompleted,
+  /// Foot flow: lacquer every toenail at once, mirrors [nailPolishing]. There
+  /// is no per-toe loop, so one sweep paints all five.
+  footNailPolishing,
+  footNailPolishingCompleted,
+  /// Foot flow finished — mirrors [handReveal].
+  footReveal,
 }
 
 enum NailCareToolId { handSoap, nailSpray, nailBuffer, nailClips, nailPolish }
@@ -131,7 +152,7 @@ abstract final class NailCareCatalog {
     NailCareTool(
       id: NailCareToolId.nailSpray,
       name: 'Nail Spray',
-      iconPath: AssetPaths.toolSpray1,
+      iconPath: AssetPaths.nailSpray,
       hint: 'Spray onto nail',
       requiredStage: NailCareStage.nailSpraying,
       interaction: NailCareInteraction.dragOntoTarget,
@@ -158,6 +179,46 @@ abstract final class NailCareCatalog {
       iconPath: AssetPaths.polishBrush,
       hint: 'Paint the nail',
       requiredStage: NailCareStage.nailPolishing,
+      interaction: NailCareInteraction.dragOntoTarget,
+    ),
+    NailCareTool(
+      id: NailCareToolId.handSoap,
+      name: 'Foot Soap',
+      iconPath: AssetPaths.handSoap,
+      hint: 'Drag onto foot',
+      requiredStage: NailCareStage.footCleaning,
+      interaction: NailCareInteraction.dragOntoTarget,
+    ),
+    NailCareTool(
+      id: NailCareToolId.nailSpray,
+      name: 'Nail Spray',
+      iconPath: AssetPaths.nailSpray,
+      hint: 'Spray onto toes',
+      requiredStage: NailCareStage.footNailSpraying,
+      interaction: NailCareInteraction.dragOntoTarget,
+    ),
+    NailCareTool(
+      id: NailCareToolId.nailBuffer,
+      name: 'Nail Wipe',
+      iconPath: AssetPaths.nailBuffer,
+      hint: 'Drag onto toes',
+      requiredStage: NailCareStage.footNailBuffering,
+      interaction: NailCareInteraction.dragOntoTarget,
+    ),
+    NailCareTool(
+      id: NailCareToolId.nailClips,
+      name: 'Nail Clips',
+      iconPath: AssetPaths.nailClips,
+      hint: 'Clip the toes',
+      requiredStage: NailCareStage.footNailCutting,
+      interaction: NailCareInteraction.dragOntoTarget,
+    ),
+    NailCareTool(
+      id: NailCareToolId.nailPolish,
+      name: 'Nail Brush',
+      iconPath: AssetPaths.polishBrush,
+      hint: 'Paint the toes',
+      requiredStage: NailCareStage.footNailPolishing,
       interaction: NailCareInteraction.dragOntoTarget,
     ),
   ];
@@ -402,11 +463,9 @@ abstract final class NailCareInventory {
     ),
   ];
 
-  /// Spray sits ahead of the owned buffer in the nail-page drawer.
-  static const List<NailCareInventoryItem> nailFinish = <NailCareInventoryItem>[
-    spray,
-    ...buffers,
-  ];
+  /// Spray and wipe are two separate drawers on the nail page — never one
+  /// merged list, or the panel opens showing both tools in the same box.
+  /// [sprays] and [buffers] are those drawers; see [splitSprayAndWipe].
 
   static const List<NailCareInventoryItem> polishes = <NailCareInventoryItem>[
     NailCareInventoryItem(
@@ -510,25 +569,40 @@ abstract final class NailCareInventory {
     ),
   ];
 
-  /// Spray and wipe each get their own HUD box during nail-clean stages.
+  /// Spray and wipe each get their own HUD box during nail-clean stages —
+  /// on the foot as well as the hand.
   static bool splitSprayAndWipe(NailCareStage stage) =>
       stage == NailCareStage.nailSpraying ||
-      stage == NailCareStage.nailBuffering;
+      stage == NailCareStage.nailBuffering ||
+      stage == NailCareStage.footNailSpraying ||
+      stage == NailCareStage.footNailBuffering;
 
   static List<NailCareInventoryItem> itemsFor(NailCareStage stage) {
     switch (stage) {
       case NailCareStage.handCleaning:
       case NailCareStage.handCleaningCompleted:
+      case NailCareStage.footCleaning:
+      case NailCareStage.footCleaningCompleted:
         return soaps;
+      // The drawer that opens by default is the one for the tool this stage
+      // actually wants; the other sits beside it as its own box.
       case NailCareStage.nailSpraying:
+      case NailCareStage.footNailSpraying:
+        return sprays;
       case NailCareStage.nailBuffering:
       case NailCareStage.nailBufferingCompleted:
-        return nailFinish;
+      case NailCareStage.footNailBuffering:
+      case NailCareStage.footNailBufferingCompleted:
+        return buffers;
       case NailCareStage.nailCutting:
       case NailCareStage.nailCuttingCompleted:
+      case NailCareStage.footNailCutting:
+      case NailCareStage.footNailCuttingCompleted:
         return clips;
       case NailCareStage.nailPolishing:
       case NailCareStage.nailPolishingCompleted:
+      case NailCareStage.footNailPolishing:
+      case NailCareStage.footNailPolishingCompleted:
         return polishes;
       case NailCareStage.inactive:
       case NailCareStage.pinkyFingerFocus:
@@ -537,6 +611,7 @@ abstract final class NailCareInventory {
       case NailCareStage.indexFingerFocus:
       case NailCareStage.thumbFingerFocus:
       case NailCareStage.handReveal:
+      case NailCareStage.footReveal:
         return const <NailCareInventoryItem>[];
     }
   }
@@ -545,16 +620,25 @@ abstract final class NailCareInventory {
     switch (stage) {
       case NailCareStage.handCleaning:
       case NailCareStage.handCleaningCompleted:
+      case NailCareStage.footCleaning:
+      case NailCareStage.footCleaningCompleted:
         return 'Soaps';
       case NailCareStage.nailSpraying:
       case NailCareStage.nailBuffering:
       case NailCareStage.nailBufferingCompleted:
+      case NailCareStage.footNailSpraying:
+      case NailCareStage.footNailBuffering:
+      case NailCareStage.footNailBufferingCompleted:
         return 'Tools';
       case NailCareStage.nailCutting:
       case NailCareStage.nailCuttingCompleted:
+      case NailCareStage.footNailCutting:
+      case NailCareStage.footNailCuttingCompleted:
         return 'Clips';
       case NailCareStage.nailPolishing:
       case NailCareStage.nailPolishingCompleted:
+      case NailCareStage.footNailPolishing:
+      case NailCareStage.footNailPolishingCompleted:
         return 'Polishes';
       case NailCareStage.inactive:
       case NailCareStage.pinkyFingerFocus:
@@ -563,6 +647,7 @@ abstract final class NailCareInventory {
       case NailCareStage.indexFingerFocus:
       case NailCareStage.thumbFingerFocus:
       case NailCareStage.handReveal:
+      case NailCareStage.footReveal:
         return '';
     }
   }

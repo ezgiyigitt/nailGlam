@@ -200,6 +200,12 @@ abstract final class GameConfig {
   static const double workspaceHandWidth = 820;
   static const double workspaceHandCenterX = workspacePlateWidth / 2;
 
+  /// Foot-card width on the plate. The foot art's native frame (384px) is far
+  /// smaller than the hand's (979px) and the foot fills its frame edge-to-edge
+  /// with almost no background margin, so reusing [workspaceHandWidth] here
+  /// upscales it ~2.5x too aggressively. Tune this to taste.
+  static const double workspaceFootWidth = 460;
+
   /// Lowered so the hand sits on the painted work pad instead of floating in
   /// empty cream space above the Clean bar.
   static const double workspaceHandCenterY = 720;
@@ -233,6 +239,10 @@ abstract final class GameConfig {
   static const double nailCareWashDuration =
       nailCareHandWashFrameTime * nailCareHandWashFrameCount;
 
+  /// Matches [NailCareInventory.brushes], the one kit that actually ships 8
+  /// slots (all sharing the same polishBrush placeholder icon). Soaps,
+  /// buffers and clips only have 6 real skins today — see
+  /// nail_care_flow_test.dart's kit-shape check, the only place this is used.
   static const int nailCareInventorySlotCount = 8;
   static const int nailCareWashCoinReward = 25;
   static const int nailCareBufferCoinReward = 40;

@@ -65,12 +65,14 @@ abstract final class AssetPaths {
   static const String premiumSpray = 'premium_spray.png';
   static const String premiumWipe = 'premium_wipe.png';
 
-  static const String toolSoap1 = 'tool_soap_1.png';
-  static const String toolSoap2 = 'tool_soap_2.png';
-  static const String toolSoap3 = 'tool_soap_3.png';
-  static const String toolSoap4 = 'tool_soap_4.png';
-  static const String toolSoap5 = 'tool_soap_5.png';
-  static const String toolSoap6 = 'tool_soap_6.png';
+  /// Sliced from the delivered `soaps_all.png` sheet (see
+  /// tool/slice_soap_bottles.py) — replaces the older tool_soap_*.png art.
+  static const String toolSoap1 = 'soap_bottle_1.png';
+  static const String toolSoap2 = 'soap_bottle_2.png';
+  static const String toolSoap3 = 'soap_bottle_3.png';
+  static const String toolSoap4 = 'soap_bottle_4.png';
+  static const String toolSoap5 = 'soap_bottle_5.png';
+  static const String toolSoap6 = 'soap_bottle_6.png';
   static const String toolSpray1 = 'tool_spray_1.png';
   static const String toolSpray2 = 'tool_spray_2.png';
   static const String toolSpray3 = 'tool_spray_3.png';
@@ -121,6 +123,12 @@ abstract final class AssetPaths {
   static const String fifthNailClean = 'fifth_nail_clean.png';
   static const String fifthNailSpray = 'fifth_nail_spray.png';
   static const String fifthNailWipe = 'fifth_nail_wipe.png';
+  static const String wipeFrame0 = 'wipe_frames/wipe_frame_0.png';
+  static const String wipeFrame1 = 'wipe_frames/wipe_frame_1.png';
+  static const String wipeFrame2 = 'wipe_frames/wipe_frame_2.png';
+  static const String wipeFrame3 = 'wipe_frames/wipe_frame_3.png';
+  static const String wipeFrame4 = 'wipe_frames/wipe_frame_4.png';
+  static const String wipeFrame5 = 'wipe_frames/wipe_frame_5.png';
   static const String shortNail = 'short_nail.png';
   static const String nailSpray = 'spray.png';
   static const String nailBuffer = 'nail_buffer.png';
@@ -150,8 +158,13 @@ abstract final class AssetPaths {
   static const String pinkyCleanLight = 'pinky_clean_light.png';
   static const String pinkyShortLight = 'pinky_short_light.png';
   static const String pinkyNailMaskLight = 'pinky_nail_mask_light.png';
-  static const String pinkyStilettoNail = 'pinky_stiletto_nail.png';
   static const String nailMaskLightPinky = 'nail_mask_light_pinky.png';
+  static const String pinkyStilettoNailLight = 'pinky_stiletto_nail_light.png';
+  static const String middleNailStilettoLight = 'middle_nail_stiletto_light.png';
+  static const String thumbNailStilettoLight = 'thumb_nail_stiletto_light.png';
+  static const String pinkyStilettoPolishMask = 'pinky_stiletto_mask.png';
+  static const String middleStilettoPolishMask = 'middle_nail_mask_light (2).png';
+  static const String thumbStilettoPolishMask = 'thumb_nail_light_mask.png';
   static const String middleCleanLight = 'middle_clean_light.png';
   static const String middleShortLight = 'middle_short_light.png';
   static const String middleNailMaskLight = 'middle_nail_mask_light.png';
@@ -165,6 +178,87 @@ abstract final class AssetPaths {
   static const String finalHandLightNailMiddle = 'final_hand_light_nail_middle.png';
   static const String finalHandLightNailPointer = 'final_hand_light_nail_pointer.png';
   static const String finalHandLightNailThumb = 'final_hand_light_nail_thumb.png';
+
+  /// Finished-hand still for a manicure where every cut nail was stiletto
+  /// shaped. [finalHandStilettoMask] is the aggregate fallback mask; the 5
+  /// per-digit masks below let each nail carry its own colour + gradient
+  /// (see [finalHandStilettoNailPinky] etc.) the same way the square reveal
+  /// already works — a shared whole-hand mask/plate stretched the gradient
+  /// and shine streak across all 5 nails, washing out whichever finger sat
+  /// nearest the plate's horizontal center.
+  static const String finalHandStiletto = 'final_hand_stiletto.png';
+  static const String finalHandStilettoMask = 'final_hand_stiletto_mask.png';
+  static const String finalHandStilettoNailPinky =
+      'final_hand_stiletto_nail_pinky.png';
+  static const String finalHandStilettoNailRing =
+      'final_hand_stiletto_nail_ring.png';
+  static const String finalHandStilettoNailMiddle =
+      'final_hand_stiletto_nail_middle.png';
+  static const String finalHandStilettoNailPointer =
+      'final_hand_stiletto_nail_pointer.png';
+  static const String finalHandStilettoNailThumb =
+      'final_hand_stiletto_nail_thumb.png';
+
+  /// 1448×1086 dark-skin counterpart of [finalHandStiletto], with the same
+  /// single unified 5-nail mask.
+  static const String finalHandDarkStiletto = 'final_hand_dark_stiletto.png';
+  static const String finalHandDarkStilettoMask =
+      'final_hand_dark_stiletto_mask.png';
+
+  /// 1536×1024, 4×1 dirty→clean foot wash stages, locked pose (whole foot).
+  static const String footCleanLight = 'foot_clean_light.png';
+
+  /// 1536×1024, 4×1 dirty→clean toenail stages, locked pose (whole foot).
+  static const String footNailCleanLight = 'foot_nail_clean_light.png';
+
+  /// 1536×1024, 4×1 stiletto cutting strip for the dark-skin pinky/ring/
+  /// middle/pointer (shared, mirrors the light-skin pinky sharing pattern).
+  static const String pinkyStilettoNailDark = 'pinky_nail_stiletto_dark.png';
+  static const String pinkyStilettoMaskDark = 'pinky_stiletto_mask_dark.png';
+
+  /// 1536×1024, 4×1 stiletto cutting strip for the dark-skin thumb.
+  static const String thumbStilettoNailDark = 'thumb_nail_dark_stiletto.png';
+  static const String thumbStilettoMaskDark = 'thumb_stiletto_mask_dark.png';
+
+  /// 2103×748, 4×1 dirty→clean thumb strip for the dark-skin clean/spray/
+  /// wipe stage. Replaces the earlier stopgap that reused
+  /// [thumbStilettoNailDark]'s first frame. No polish mask is needed here:
+  /// this sheet only backs [NailCareStage.nailSpraying]/[nailBuffering] —
+  /// the polish mask is only sampled off the short/cut sheet during
+  /// [NailCareStage.nailPolishing] (see [thumbNailMaskDark]).
+  static const String thumbNailDarkWipe = 'thumb_nail_dark_wipe.png';
+
+  /// 2172x724, 6x1 whole-foot toenail cutting strip (all toes at once).
+  static const String footNailCutStrip = 'toe_nail_cutting_light.png';
+
+  static const String footCleanDark = 'toe_cleaning_dark.png';
+  static const String footNailCleanDark = 'toe_nail_cleaning_dark.png';
+  static const String footNailCutStripDark = 'toe_cutting_dark.png';
+
+  /// Toenail silhouettes traced from the cutting strips, one set of five per
+  /// cell, on the strip's own canvas. Generated by tool/build_toenail_mask.py.
+  ///
+  /// `footNailPolishMaskLight` is now sourced from the manually-authored
+  /// `light_toe_mask.png` which was painted directly over the last frame of
+  /// `toe_nail_cutting_light.png` (2172×724 canvas). This replaces the earlier
+  /// auto-generated mask for pixel-perfect toenail alignment on the light skin.
+  static const String footNailPolishMaskLight = 'light_toe_mask.png';
+  static const String footNailPolishMaskDark = 'toe_nail_polish_mask_dark.png';
+
+  /// Per-toe split of [footNailPolishMaskLight], same reasoning as the
+  /// stiletto hand's per-digit masks: one shared mask/plate stretched a
+  /// single gradient + shine streak across all 5 toes, washing out whichever
+  /// toe sat nearest the shared plate's centre. Each file is the full
+  /// 2172×724 canvas with only that toe's blob opaque, isolated by
+  /// connected-component split of the original mask, lightly smoothed.
+  static const String finalToeLightNailThumb = 'final_toe_light_nail_thumb.png';
+  static const String finalToeLightNailPointer =
+      'final_toe_light_nail_pointer.png';
+  static const String finalToeLightNailMiddle =
+      'final_toe_light_nail_middle.png';
+  static const String finalToeLightNailRing = 'final_toe_light_nail_ring.png';
+  static const String finalToeLightNailPinky =
+      'final_toe_light_nail_pinky.png';
 
   /// Files that must exist on disk before the salon is built. The arrival art
   /// is deliberately absent: it falls back to generated placeholders.
@@ -238,6 +332,12 @@ abstract final class AssetPaths {
     fifthNailClean,
     fifthNailSpray,
     fifthNailWipe,
+    wipeFrame0,
+    wipeFrame1,
+    wipeFrame2,
+    wipeFrame3,
+    wipeFrame4,
+    wipeFrame5,
     shortNail,
     nailSpray,
     nailBuffer,
@@ -266,8 +366,13 @@ abstract final class AssetPaths {
     pinkyCleanLight,
     pinkyShortLight,
     pinkyNailMaskLight,
-    pinkyStilettoNail,
     nailMaskLightPinky,
+    pinkyStilettoNailLight,
+    middleNailStilettoLight,
+    thumbNailStilettoLight,
+    pinkyStilettoPolishMask,
+    middleStilettoPolishMask,
+    thumbStilettoPolishMask,
     middleCleanLight,
     middleShortLight,
     middleNailMaskLight,
@@ -281,5 +386,32 @@ abstract final class AssetPaths {
     finalHandLightNailMiddle,
     finalHandLightNailPointer,
     finalHandLightNailThumb,
+    finalHandStiletto,
+    finalHandStilettoMask,
+    finalHandStilettoNailPinky,
+    finalHandStilettoNailRing,
+    finalHandStilettoNailMiddle,
+    finalHandStilettoNailPointer,
+    finalHandStilettoNailThumb,
+    footCleanLight,
+    footNailCleanLight,
+    pinkyStilettoNailDark,
+    pinkyStilettoMaskDark,
+    thumbStilettoNailDark,
+    thumbStilettoMaskDark,
+    thumbNailDarkWipe,
+    footNailCutStrip,
+    footCleanDark,
+    footNailCleanDark,
+    footNailCutStripDark,
+    finalHandDarkStiletto,
+    finalHandDarkStilettoMask,
+    footNailPolishMaskLight,
+    footNailPolishMaskDark,
+    finalToeLightNailThumb,
+    finalToeLightNailPointer,
+    finalToeLightNailMiddle,
+    finalToeLightNailRing,
+    finalToeLightNailPinky,
   ];
 }

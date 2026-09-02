@@ -162,6 +162,17 @@ class PlayerProgress extends ChangeNotifier {
     return true;
   }
 
+  /// Switches the slot back to an already-owned piece (starter or bought).
+  bool equip(ShopItem item) {
+    if (!owns(item.id) || equipped[item.slot] == item.id) {
+      return false;
+    }
+    equipped[item.slot] = item.id;
+    _persist();
+    notifyListeners();
+    return true;
+  }
+
   int claimDailyLogin() {
     if (!canClaimLogin) {
       return 0;

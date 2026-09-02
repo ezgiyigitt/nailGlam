@@ -13,8 +13,10 @@ class ShopScreen extends StatefulWidget {
   final PlayerProgressController progressController;
 
   static const List<ShopItem> showroom = <ShopItem>[
+    SalonCatalog.starterChair,
     SalonCatalog.pinkChair,
     SalonCatalog.goldChair,
+    SalonCatalog.starterTable,
     SalonCatalog.marbleTable,
     SalonCatalog.premiumTable,
   ];
@@ -274,12 +276,25 @@ class _BuyBar extends StatelessWidget {
     final owned = progressController.owns(item.id);
     final equipped = progressController.isEquipped(item.slot, item.id);
     final canBuy = progressController.canBuy(item);
+    // Owned but parked (e.g. the starter piece after buying a premium one,
+    // or a premium piece after switching back to the starter) can be
+    // re-equipped instead of sitting there with no action at all.
+    final canEquip = owned && !equipped;
 
     late final Widget child;
-    if (item.starter || owned) {
-      child = Text(
-        equipped ? 'Placed in salon' : 'Owned',
-        style: const TextStyle(
+    if (equipped) {
+      child = const Text(
+        'Placed in salon',
+        style: TextStyle(
+          fontFamily: 'Baloo2',
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+        ),
+      );
+    } else if (owned) {
+      child = const Text(
+        'Use in salon',
+        style: TextStyle(
           fontFamily: 'Baloo2',
           fontSize: 18,
           fontWeight: FontWeight.w800,
@@ -317,7 +332,7 @@ class _BuyBar extends StatelessWidget {
       child: FilledButton(
         key: Key('shop-buy-${item.id}'),
         style: FilledButton.styleFrom(
-          backgroundColor: canBuy
+          backgroundColor: canBuy || canEquip
               ? const Color(0xFFFF6BA8)
               : const Color(0xFFD7B4C0),
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -326,6 +341,12 @@ class _BuyBar extends StatelessWidget {
             ? () {
                 if (progressController.buyShopItem(item)) {
                   GameAudio.instance.coin();
+                }
+              }
+            : canEquip
+            ? () {
+                if (progressController.equipShopItem(item)) {
+                  GameAudio.instance.tap();
                 }
               }
             : null,

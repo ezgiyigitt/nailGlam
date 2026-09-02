@@ -196,8 +196,8 @@ class _HomeOverlayState extends State<HomeOverlay> {
                       Expanded(
                         child: LayoutBuilder(
                           builder: (BuildContext context, BoxConstraints logo) {
-                            final maxWidth = logo.maxWidth * 0.94;
-                            final maxHeight = logo.maxHeight * 0.74;
+                            final maxWidth = logo.maxWidth * 1.0;
+                            final maxHeight = logo.maxHeight * 0.95;
                             return Center(
                               child: ConstrainedBox(
                                 constraints: BoxConstraints(

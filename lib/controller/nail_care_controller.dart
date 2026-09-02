@@ -32,9 +32,14 @@ class NailCareController extends Component
   GuestCareKit get careKit => GuestCareCatalog.forId(guestId);
 
   NailCareStage stage = NailCareStage.inactive;
+  CareTarget careTarget = CareTarget.hand;
   NailDigit digit = NailDigit.pinky;
   NailShape nailShape = NailShape.square;
   bool nailShapeChoiceOpen = false;
+
+  /// True once the guest has picked a shape for this manicure — later
+  /// fingers reuse it instead of asking again on every cutting page.
+  bool _nailShapeLockedIn = false;
   bool toolHeldOverTarget = false;
   double nailCleanProgress = 0;
   double actionProgress = 0;
@@ -67,6 +72,16 @@ class NailCareController extends Component
       case NailCareStage.handCleaning:
       case NailCareStage.handCleaningCompleted:
       case NailCareStage.handReveal:
+      case NailCareStage.footCleaning:
+      case NailCareStage.footCleaningCompleted:
+      case NailCareStage.footNailSpraying:
+      case NailCareStage.footNailBuffering:
+      case NailCareStage.footNailBufferingCompleted:
+      case NailCareStage.footNailCutting:
+      case NailCareStage.footNailCuttingCompleted:
+      case NailCareStage.footNailPolishing:
+      case NailCareStage.footNailPolishingCompleted:
+      case NailCareStage.footReveal:
         return null;
       case NailCareStage.pinkyFingerFocus:
       case NailCareStage.ringFingerFocus:
@@ -138,6 +153,16 @@ class NailCareController extends Component
       case NailCareStage.indexFingerFocus:
       case NailCareStage.thumbFingerFocus:
       case NailCareStage.handReveal:
+      case NailCareStage.footCleaning:
+      case NailCareStage.footCleaningCompleted:
+      case NailCareStage.footNailSpraying:
+      case NailCareStage.footNailBuffering:
+      case NailCareStage.footNailBufferingCompleted:
+      case NailCareStage.footNailCutting:
+      case NailCareStage.footNailCuttingCompleted:
+      case NailCareStage.footNailPolishing:
+      case NailCareStage.footNailPolishingCompleted:
+      case NailCareStage.footReveal:
         return stored;
     }
   }
@@ -175,7 +200,7 @@ class NailCareController extends Component
 
   /// Mini hand tracker during nail work only — hidden on reveal so it does
   /// not cover the finished full-hand art.
-  bool get showsNailHud => showsProgressBar;
+  bool get showsNailHud => showsProgressBar && careTarget == CareTarget.hand;
 
   NailCareTool? get activeTool => NailCareCatalog.activeToolFor(stage);
 
@@ -218,7 +243,12 @@ class NailCareController extends Component
           stage == NailCareStage.nailSpraying ||
           stage == NailCareStage.nailBuffering ||
           stage == NailCareStage.nailCutting ||
-          stage == NailCareStage.nailPolishing);
+          stage == NailCareStage.nailPolishing ||
+          stage == NailCareStage.footCleaning ||
+          stage == NailCareStage.footNailSpraying ||
+          stage == NailCareStage.footNailBuffering ||
+          stage == NailCareStage.footNailCutting ||
+          stage == NailCareStage.footNailPolishing);
 
   bool get showsSelectedTool =>
       showsInventory && selectedItem != null && ownsKitItem(selectedItem!);
@@ -230,7 +260,12 @@ class NailCareController extends Component
           stage == NailCareStage.nailBufferingCompleted ||
           stage == NailCareStage.nailCuttingCompleted ||
           stage == NailCareStage.nailPolishingCompleted ||
-          stage == NailCareStage.handReveal);
+          stage == NailCareStage.handReveal ||
+          stage == NailCareStage.footCleaningCompleted ||
+          stage == NailCareStage.footNailBufferingCompleted ||
+          stage == NailCareStage.footNailCuttingCompleted ||
+          stage == NailCareStage.footNailPolishingCompleted ||
+          stage == NailCareStage.footReveal);
 
   /// Whether the HUD shows the bottom progress bar and wallet header.
   bool get showsProgressBar {
@@ -251,8 +286,18 @@ class NailCareController extends Component
       case NailCareStage.nailCuttingCompleted:
       case NailCareStage.nailPolishing:
       case NailCareStage.nailPolishingCompleted:
+      case NailCareStage.footCleaning:
+      case NailCareStage.footCleaningCompleted:
+      case NailCareStage.footNailSpraying:
+      case NailCareStage.footNailBuffering:
+      case NailCareStage.footNailBufferingCompleted:
+      case NailCareStage.footNailCutting:
+      case NailCareStage.footNailCuttingCompleted:
+      case NailCareStage.footNailPolishing:
+      case NailCareStage.footNailPolishingCompleted:
         return true;
       case NailCareStage.handReveal:
+      case NailCareStage.footReveal:
         return false;
     }
   }
@@ -277,13 +322,25 @@ class NailCareController extends Component
       case NailCareStage.handCleaning:
       case NailCareStage.handCleaningCompleted:
       case NailCareStage.handReveal:
+      case NailCareStage.footCleaning:
+      case NailCareStage.footCleaningCompleted:
+      case NailCareStage.footNailSpraying:
+      case NailCareStage.footNailBuffering:
+      case NailCareStage.footNailBufferingCompleted:
+      case NailCareStage.footNailCutting:
+      case NailCareStage.footNailCuttingCompleted:
+      case NailCareStage.footNailPolishing:
+      case NailCareStage.footNailPolishingCompleted:
+      case NailCareStage.footReveal:
         return false;
     }
   }
 
   String get progressLabel {
     if (stage == NailCareStage.nailPolishing ||
-        stage == NailCareStage.nailPolishingCompleted) {
+        stage == NailCareStage.nailPolishingCompleted ||
+        stage == NailCareStage.footNailPolishing ||
+        stage == NailCareStage.footNailPolishingCompleted) {
       return 'Polish';
     }
     return 'Clean';
@@ -294,6 +351,8 @@ class NailCareController extends Component
     switch (stage) {
       case NailCareStage.handCleaning:
         return 'Open SOAPS and drag soap onto the hand';
+      case NailCareStage.footCleaning:
+        return 'Open SOAPS and drag soap onto the foot';
       case NailCareStage.ringFingerFocus:
       case NailCareStage.middleFingerFocus:
       case NailCareStage.indexFingerFocus:
@@ -303,24 +362,40 @@ class NailCareController extends Component
         return 'Spray the $name to loosen grime';
       case NailCareStage.nailBuffering:
         return 'Wipe the $name until it shines';
+      case NailCareStage.footNailSpraying:
+        return 'Spray the toes to loosen grime';
+      case NailCareStage.footNailBuffering:
+        return 'Wipe the toes until they shine';
       case NailCareStage.nailCutting:
         return 'Open CLIPS — touch the nail once per snip';
+      case NailCareStage.footNailCutting:
+        return 'Open CLIPS — touch the toes once per snip';
       case NailCareStage.nailPolishing:
         return 'Open POLISHES and paint the $name';
       case NailCareStage.handCleaningCompleted:
       case NailCareStage.nailCuttingCompleted:
+      case NailCareStage.footCleaningCompleted:
         return 'Nice! Tap NEXT to keep going';
       case NailCareStage.nailBufferingCompleted:
         if (!careKit.allowsCutAndPolish(digit) && digit.next == null) {
           return 'Nice! Tap NEXT to see your work';
         }
         return 'Nice! Tap NEXT to keep going';
+      case NailCareStage.footNailBufferingCompleted:
+        return 'Nice! Tap NEXT to keep going';
+      case NailCareStage.footNailCuttingCompleted:
+        return 'Nice! Tap NEXT to keep going';
+      case NailCareStage.footNailPolishing:
+        return 'Open POLISHES and paint the toes';
+      case NailCareStage.footNailPolishingCompleted:
+        return 'Nice! Tap NEXT to see your work';
       case NailCareStage.nailPolishingCompleted:
         final next = digit.next;
         return next == null
             ? 'Nice! Tap NEXT to see your work'
             : 'Nice! Next up: the ${next.label}';
       case NailCareStage.handReveal:
+      case NailCareStage.footReveal:
         return null;
       case NailCareStage.inactive:
       case NailCareStage.pinkyFingerFocus:
@@ -356,6 +431,7 @@ class NailCareController extends Component
       case NailCareStage.inactive:
         return 0;
       case NailCareStage.handCleaning:
+      case NailCareStage.footCleaning:
         return actionProgress * 0.35;
       case NailCareStage.handCleaningCompleted:
       case NailCareStage.pinkyFingerFocus:
@@ -363,21 +439,30 @@ class NailCareController extends Component
       case NailCareStage.middleFingerFocus:
       case NailCareStage.indexFingerFocus:
       case NailCareStage.thumbFingerFocus:
+      case NailCareStage.footCleaningCompleted:
         return 0.40;
       case NailCareStage.nailSpraying:
+      case NailCareStage.footNailSpraying:
         return 0.40 + nailCleanProgress * 0.15;
       case NailCareStage.nailBuffering:
+      case NailCareStage.footNailBuffering:
         return 0.55 + nailCleanProgress * 0.20;
       case NailCareStage.nailBufferingCompleted:
+      case NailCareStage.footNailBufferingCompleted:
         return 0.75;
       case NailCareStage.nailCutting:
+      case NailCareStage.footNailCutting:
         return 0.75 + nailCleanProgress * 0.10;
       case NailCareStage.nailCuttingCompleted:
+      case NailCareStage.footNailCuttingCompleted:
         return 0.85;
       case NailCareStage.nailPolishing:
+      case NailCareStage.footNailPolishing:
         return 0.85 + nailCleanProgress * 0.15;
       case NailCareStage.nailPolishingCompleted:
+      case NailCareStage.footNailPolishingCompleted:
       case NailCareStage.handReveal:
+      case NailCareStage.footReveal:
         return 1;
     }
   }
@@ -450,6 +535,15 @@ class NailCareController extends Component
     if (match.polishColor != 0) {
       _activePolishColor = match.polishColor;
       workspace.setPolishColor(match.polishColor);
+      if (stage == NailCareStage.footNailPolishing ||
+          stage == NailCareStage.footNailPolishingCompleted) {
+        // The foot takes its colour by argument, so repaint now instead of
+        // leaving the swatch disagreeing with the toes until the next hold.
+        workspace.showFootPolish(
+          color: match.polishColor,
+          fill: nailCleanProgress,
+        );
+      }
     }
     notifyListeners();
   }
@@ -498,6 +592,15 @@ class NailCareController extends Component
     if (match.polishColor != 0) {
       _activePolishColor = match.polishColor;
       workspace.setPolishColor(match.polishColor);
+      if (stage == NailCareStage.footNailPolishing ||
+          stage == NailCareStage.footNailPolishingCompleted) {
+        // The foot takes its colour by argument, so repaint now instead of
+        // leaving the swatch disagreeing with the toes until the next hold.
+        workspace.showFootPolish(
+          color: match.polishColor,
+          fill: nailCleanProgress,
+        );
+      }
     }
     notifyListeners();
   }
@@ -526,9 +629,11 @@ class NailCareController extends Component
 
   void reset() {
     stage = NailCareStage.inactive;
+    careTarget = CareTarget.hand;
     digit = NailDigit.pinky;
     nailShape = NailShape.square;
     nailShapeChoiceOpen = false;
+    _nailShapeLockedIn = false;
     toolHeldOverTarget = false;
     _clipSnipReady = true;
     nailCleanProgress = 0;
@@ -553,6 +658,8 @@ class NailCareController extends Component
   void beginHandCleaning() {
     stage = NailCareStage.handCleaning;
     digit = NailDigit.pinky;
+    nailShape = NailShape.square;
+    _nailShapeLockedIn = false;
     toolHeldOverTarget = false;
     _clipSnipReady = true;
     nailCleanProgress = 0;
@@ -572,21 +679,49 @@ class NailCareController extends Component
     notifyListeners();
   }
 
+  /// Foot flow entry point, mirrors [beginHandCleaning] but on foot art.
+  void beginFootCleaning() {
+    careTarget = CareTarget.foot;
+    stage = NailCareStage.footCleaning;
+    digit = NailDigit.pinky;
+    toolHeldOverTarget = false;
+    _clipSnipReady = true;
+    nailCleanProgress = 0;
+    actionProgress = 0;
+    inventoryOpen = false;
+    _openKit = null;
+    selectedItemId = null;
+    pendingCoins = 0;
+    rewardOpen = false;
+    adBonusApplied = false;
+    stageRewardClaimed = false;
+    _washStarted = false;
+    polishByDigit.clear();
+    _digitSim.clear();
+    _activePolishColor = NailCareInventory.polishes.first.polishColor;
+    workspace.showFootWashHand(cleanliness: 0);
+    notifyListeners();
+  }
+
   void onToolHeldOverTarget(NailCareToolId id) {
     if (!canUse(id)) {
       return;
     }
-    if (stage == NailCareStage.handCleaning) {
+    if (stage == NailCareStage.handCleaning || stage == NailCareStage.footCleaning) {
       _startWashIfNeeded();
       return;
     }
-    if (stage == NailCareStage.nailCutting) {
+    if (stage == NailCareStage.nailCutting || stage == NailCareStage.footNailCutting) {
       if (!_clipSnipReady) {
         return;
       }
       _clipSnipReady = false;
       toolHeldOverTarget = true;
-      _applyClipSnip();
+      if (stage == NailCareStage.footNailCutting) {
+        _applyFootClipSnip();
+      } else {
+        _applyClipSnip();
+      }
       return;
     }
     if (_isContinuousNailHoldStage && !toolHeldOverTarget) {
@@ -596,7 +731,13 @@ class NailCareController extends Component
         GameAudio.instance.startSpray();
       } else if (stage == NailCareStage.nailBuffering) {
         GameAudio.instance.startBuffer();
-      } else if (stage == NailCareStage.nailPolishing) {
+      } else if (stage == NailCareStage.footNailSpraying) {
+        workspace.showSprayMist();
+        GameAudio.instance.startSpray();
+      } else if (stage == NailCareStage.footNailBuffering) {
+        GameAudio.instance.startBuffer();
+      } else if (stage == NailCareStage.nailPolishing ||
+          stage == NailCareStage.footNailPolishing) {
         GameAudio.instance.startPolish();
       }
       notifyListeners();
@@ -604,7 +745,7 @@ class NailCareController extends Component
   }
 
   void onToolLeftTarget() {
-    if (stage == NailCareStage.nailCutting) {
+    if (stage == NailCareStage.nailCutting || stage == NailCareStage.footNailCutting) {
       _clipSnipReady = true;
       if (!toolHeldOverTarget) {
         return;
@@ -623,11 +764,13 @@ class NailCareController extends Component
   }
 
   void onToolDroppedOnTarget(NailCareToolId id) {
-    if (stage == NailCareStage.handCleaning) {
+    if (stage == NailCareStage.handCleaning || stage == NailCareStage.footCleaning) {
       onToolHeldOverTarget(id);
       return;
     }
-    if (stage == NailCareStage.nailCutting || _isContinuousNailHoldStage) {
+    if (stage == NailCareStage.nailCutting ||
+        stage == NailCareStage.footNailCutting ||
+        _isContinuousNailHoldStage) {
       onToolLeftTarget();
     }
   }
@@ -694,7 +837,119 @@ class NailCareController extends Component
     }
     if (stage == NailCareStage.handReveal) {
       onRequestFinish();
+      return;
     }
+    if (stage == NailCareStage.footCleaningCompleted) {
+      stage = NailCareStage.footNailSpraying;
+      toolHeldOverTarget = false;
+      selectedItemId = null;
+      inventoryOpen = false;
+      _openKit = null;
+      stageRewardClaimed = false;
+      nailCleanProgress = 0;
+      actionProgress = 0;
+      workspace.setFootNailCleanProgress(0);
+      notifyListeners();
+      return;
+    }
+    if (stage == NailCareStage.footNailBufferingCompleted) {
+      beginFootNailCutting();
+      return;
+    }
+    if (stage == NailCareStage.footNailCuttingCompleted) {
+      beginFootNailPolishing();
+      return;
+    }
+    if (stage == NailCareStage.footNailPolishingCompleted) {
+      beginFootReveal();
+      return;
+    }
+    if (stage == NailCareStage.footReveal) {
+      onRequestFinish();
+    }
+  }
+
+  /// Whole-foot toenail cutting — every toe shortens together, one snip per
+  /// touch, no shape choice (mirrors [beginNailCutting] minus the picker).
+  void beginFootNailCutting() {
+    if (stage != NailCareStage.footNailBufferingCompleted) {
+      return;
+    }
+    stage = NailCareStage.footNailCutting;
+    toolHeldOverTarget = false;
+    _clipSnipReady = true;
+    nailCleanProgress = 0;
+    actionProgress = 0;
+    inventoryOpen = false;
+    _openKit = null;
+    selectedItemId = null;
+    pendingCoins = 0;
+    rewardOpen = false;
+    adBonusApplied = false;
+    stageRewardClaimed = false;
+    workspace.hideSprayMist();
+    workspace.showFootNailCutFrame(0);
+    notifyListeners();
+  }
+
+  void _applyFootClipSnip() {
+    final last = (careKit.footNailCutSheet.frameCount - 1).clamp(1, 99);
+    final current = (nailCleanProgress * last).round().clamp(0, last);
+    final next = (current + 1).clamp(0, last);
+    nailCleanProgress = next / last;
+    actionProgress = nailCleanProgress;
+    workspace.showFootNailCutFrame(next);
+    GameAudio.instance.clip();
+    if (next >= last) {
+      toolHeldOverTarget = false;
+      _clipSnipReady = false;
+      stage = NailCareStage.footNailCuttingCompleted;
+      workspace.showFootNailCutFrame(last);
+      _releaseTool();
+      _openReward(GameConfig.nailCareCutCoinReward);
+      return;
+    }
+    notifyListeners();
+  }
+
+  /// Lacquer every toenail in one sweep — the pedicure has no per-toe loop,
+  /// so this mirrors [beginNailPolishing] without the digit bookkeeping.
+  void beginFootNailPolishing() {
+    if (stage != NailCareStage.footNailCuttingCompleted) {
+      return;
+    }
+    stage = NailCareStage.footNailPolishing;
+    toolHeldOverTarget = false;
+    nailCleanProgress = 0;
+    actionProgress = 0;
+    inventoryOpen = false;
+    _openKit = null;
+    selectedItemId = null;
+    pendingCoins = 0;
+    rewardOpen = false;
+    adBonusApplied = false;
+    stageRewardClaimed = false;
+    workspace.hideSprayMist();
+    workspace.showFootPolish(color: _activePolishColor, fill: 0);
+    notifyListeners();
+  }
+
+  void beginFootReveal() {
+    stage = NailCareStage.footReveal;
+    toolHeldOverTarget = false;
+    nailCleanProgress = 1;
+    actionProgress = 1;
+    inventoryOpen = false;
+    _openKit = null;
+    selectedItemId = null;
+    rewardOpen = false;
+    stageRewardClaimed = true;
+    workspace.hideSprayMist();
+    // Hold the painted toes — re-running the clean strip here would wipe the
+    // lacquer the guest just watched go on.
+    workspace.showFootPolish(color: _activePolishColor, fill: 1);
+    onRequestHandReveal();
+    notifyListeners();
   }
 
   void _advanceToNextFingerOrReveal() {
@@ -727,9 +982,21 @@ class NailCareController extends Component
     rewardOpen = false;
     stageRewardClaimed = true;
     workspace.hideSprayMist();
-    workspace.showFinishedHand(polishByDigit);
+    workspace.showFinishedHand(polishByDigit, _allCutDigitsAreStiletto);
     onRequestHandReveal();
     notifyListeners();
+  }
+
+  /// True once every nail that got cut+polished this visit was stiletto
+  /// shaped — the trigger for the dedicated stiletto reveal art.
+  bool get _allCutDigitsAreStiletto {
+    final targets = careKit.cutPolishDigits ?? NailDigit.values.toSet();
+    if (targets.isEmpty) {
+      return false;
+    }
+    return targets.every(
+      (NailDigit d) => _digitSim[d]?.shape == NailShape.stiletto,
+    );
   }
 
   void beginNailBuffering() {
@@ -774,9 +1041,17 @@ class NailCareController extends Component
     adBonusApplied = false;
     stageRewardClaimed = false;
     workspace.hideSprayMist();
-    workspace.setNailShape(NailShape.square);
-    workspace.showShortNail(frame: 0);
-    nailShapeChoiceOpen = true;
+    if (_nailShapeLockedIn) {
+      // Shape was already chosen for an earlier finger this visit — reuse it
+      // silently instead of asking again.
+      workspace.setNailShape(nailShape, digit: digit);
+      workspace.showShortNail(frame: 0);
+      nailShapeChoiceOpen = false;
+    } else {
+      workspace.setNailShape(NailShape.square, digit: digit);
+      workspace.showShortNail(frame: 0);
+      nailShapeChoiceOpen = true;
+    }
     notifyListeners();
   }
 
@@ -787,8 +1062,9 @@ class NailCareController extends Component
       return;
     }
     nailShape = shape;
+    _nailShapeLockedIn = true;
     nailShapeChoiceOpen = false;
-    workspace.setNailShape(shape);
+    workspace.setNailShape(shape, digit: digit);
     GameAudio.instance.tap();
     notifyListeners();
   }
@@ -822,16 +1098,24 @@ class NailCareController extends Component
       return;
     }
 
-    if (stage == NailCareStage.handCleaning && _washStarted) {
+    if ((stage == NailCareStage.handCleaning ||
+            stage == NailCareStage.footCleaning) &&
+        _washStarted) {
       if (actionProgress >= 1) {
         return;
       }
       final next = (actionProgress + dt / GameConfig.nailCareWashDuration)
           .clamp(0.0, 1.0);
-      workspace.setWashProgress(next);
+      if (stage == NailCareStage.footCleaning) {
+        workspace.setFootWashProgress(next);
+      } else {
+        workspace.setWashProgress(next);
+      }
       actionProgress = next;
       if (next >= 1) {
-        stage = NailCareStage.handCleaningCompleted;
+        stage = stage == NailCareStage.footCleaning
+            ? NailCareStage.footCleaningCompleted
+            : NailCareStage.handCleaningCompleted;
         _releaseTool();
         _openReward(GameConfig.nailCareWashCoinReward);
       } else {
@@ -844,22 +1128,39 @@ class NailCareController extends Component
       return;
     }
 
+    final isFootNail = stage == NailCareStage.footNailSpraying ||
+        stage == NailCareStage.footNailBuffering;
+
     final duration = switch (stage) {
       NailCareStage.nailSpraying => GameConfig.nailCareSprayHoldDuration,
       NailCareStage.nailBuffering => GameConfig.nailCareBufferHoldDuration,
       NailCareStage.nailPolishing => GameConfig.nailCarePolishHoldDuration,
+      NailCareStage.footNailSpraying => GameConfig.nailCareSprayHoldDuration,
+      NailCareStage.footNailBuffering => GameConfig.nailCareBufferHoldDuration,
+      NailCareStage.footNailPolishing => GameConfig.nailCarePolishHoldDuration,
       _ => GameConfig.nailCareBufferHoldDuration,
     };
-    final previousFrame = _activeNailFrame(nailCleanProgress);
+    final previousFrame = isFootNail ? 0 : _activeNailFrame(nailCleanProgress);
     nailCleanProgress = (nailCleanProgress + dt / duration).clamp(0.0, 1.0);
     // Last wipe/spray cell shows before the timer hits 1. Treat that as
     // done so Next is not locked behind a second hold.
-    if (_holdShowsFinalArt) {
+    if (isFootNail) {
+      if (nailCleanProgress >= 0.999) {
+        nailCleanProgress = 1;
+      }
+    } else if (_holdShowsFinalArt) {
       nailCleanProgress = 1;
     }
     actionProgress = _combinedNailProgress;
     if (stage == NailCareStage.nailPolishing) {
       workspace.setPolishFill(nailCleanProgress);
+    } else if (stage == NailCareStage.footNailPolishing) {
+      workspace.showFootPolish(
+        color: _activePolishColor,
+        fill: nailCleanProgress,
+      );
+    } else if (isFootNail) {
+      workspace.setFootNailCleanProgress(actionProgress);
     } else {
       final frame = _activeNailFrame(nailCleanProgress);
       if (frame != previousFrame) {
@@ -892,6 +1193,26 @@ class NailCareController extends Component
       stage = NailCareStage.nailBufferingCompleted;
       workspace.setPinkyFrame(_cleanSheet.frameCount - 1);
       _openReward(GameConfig.nailCareBufferCoinReward);
+      return;
+    }
+    if (stage == NailCareStage.footNailSpraying) {
+      stage = NailCareStage.footNailBuffering;
+      nailCleanProgress = 0;
+      workspace.setFootNailCleanProgress(0.5);
+      notifyListeners();
+      return;
+    }
+    if (stage == NailCareStage.footNailBuffering) {
+      stage = NailCareStage.footNailBufferingCompleted;
+      workspace.setFootNailCleanProgress(1);
+      _openReward(GameConfig.nailCareBufferCoinReward);
+      return;
+    }
+
+    if (stage == NailCareStage.footNailPolishing) {
+      stage = NailCareStage.footNailPolishingCompleted;
+      workspace.showFootPolish(color: _activePolishColor, fill: 1);
+      _openReward(GameConfig.nailCarePolishCoinReward);
       return;
     }
 
@@ -933,14 +1254,20 @@ class NailCareController extends Component
   bool get _isContinuousNailHoldStage =>
       stage == NailCareStage.nailSpraying ||
       stage == NailCareStage.nailBuffering ||
-      stage == NailCareStage.nailPolishing;
+      stage == NailCareStage.nailPolishing ||
+      stage == NailCareStage.footNailSpraying ||
+      stage == NailCareStage.footNailBuffering ||
+      stage == NailCareStage.footNailPolishing;
 
   double get _combinedNailProgress {
-    if (stage == NailCareStage.nailSpraying) {
+    if (stage == NailCareStage.nailSpraying ||
+        stage == NailCareStage.footNailSpraying) {
       return nailCleanProgress * 0.5;
     }
     if (stage == NailCareStage.nailBuffering ||
-        stage == NailCareStage.nailBufferingCompleted) {
+        stage == NailCareStage.nailBufferingCompleted ||
+        stage == NailCareStage.footNailBuffering ||
+        stage == NailCareStage.footNailBufferingCompleted) {
       return 0.5 + nailCleanProgress * 0.5;
     }
     if (stage == NailCareStage.nailCutting ||
@@ -988,7 +1315,11 @@ class NailCareController extends Component
       return;
     }
     _washStarted = true;
-    workspace.setWashProgress(0);
+    if (stage == NailCareStage.footCleaning) {
+      workspace.setFootWashProgress(0);
+    } else {
+      workspace.setWashProgress(0);
+    }
     GameAudio.instance.startSoap();
     notifyListeners();
   }
@@ -1072,6 +1403,14 @@ class NailCareController extends Component
   }
 
   CharacterSheet get _shortSheet {
+    if (nailShape == NailShape.stiletto) {
+      // Ring, middle and pointer all reuse the pinky's stiletto sheet — see
+      // GuestCareCatalog.light.stilettoArt.
+      return switch (digit) {
+        NailDigit.thumb => SpriteAtlas.thumbStilettoLight,
+        _ => SpriteAtlas.pinkyStilettoLight,
+      };
+    }
     final art = careKit.artFor(digit);
     if (art != null && careKit.allowsCutAndPolish(digit)) {
       return art.shortSheet;
@@ -1081,11 +1420,11 @@ class NailCareController extends Component
       return guestShort;
     }
     return switch (digit) {
-      NailDigit.pinky => SpriteAtlas.shortNail,
-      NailDigit.ring => SpriteAtlas.fourthShortNail,
-      NailDigit.middle => SpriteAtlas.thirdNailShort,
+      NailDigit.pinky   => SpriteAtlas.shortNail,
+      NailDigit.ring    => SpriteAtlas.fourthShortNail,
+      NailDigit.middle  => SpriteAtlas.thirdNailShort,
       NailDigit.pointer => SpriteAtlas.secondNailShort,
-      NailDigit.thumb => SpriteAtlas.firstNailShort,
+      NailDigit.thumb   => SpriteAtlas.firstNailShort,
     };
   }
 }

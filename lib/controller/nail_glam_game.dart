@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:nail_glam/view/arrival_complete_overlay.dart';
 import 'package:nail_glam/view/arrival_controls_overlay.dart';
+import 'package:nail_glam/view/care_target_choice_overlay.dart';
 import 'package:nail_glam/view/customer_thought_bubble_overlay.dart';
 import 'package:nail_glam/view/home_overlay.dart';
 import 'package:nail_glam/view/nail_care_overlay.dart';
@@ -251,10 +252,22 @@ class NailGlamGame extends FlameGame with PanDetector {
     );
     scene.hideScenery();
     scene.workspace.revealImmediate();
-    if (overlays.isActive(NailCareOverlay.id)) {
+    if (overlays.isActive(NailCareOverlay.id) ||
+        overlays.isActive(CareTargetChoiceOverlay.id)) {
       return;
     }
+    overlays.add(CareTargetChoiceOverlay.id);
+  }
+
+  void chooseHandCare() {
+    overlays.remove(CareTargetChoiceOverlay.id);
     nailCare.beginHandCleaning();
+    overlays.add(NailCareOverlay.id);
+  }
+
+  void chooseFootCare() {
+    overlays.remove(CareTargetChoiceOverlay.id);
+    nailCare.beginFootCleaning();
     overlays.add(NailCareOverlay.id);
   }
 

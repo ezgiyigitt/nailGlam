@@ -18,9 +18,29 @@ abstract final class SpriteAtlas {
     Vector2.zero(),
   ];
 
-  /// 3952×1358, 4×1 even wash stages for Zeynep.
+  /// 1536×1024, 4×1 dirty→clean foot stages. Locked pose: no per-frame shift.
+  static final CharacterSheet footWash = CharacterSheet.evenStrip(
+    Vector2(384, 1024),
+  );
+
+  /// 1536×1024, 4×1 dirty→clean toenail stages. Locked pose, same as [footWash].
+  static final CharacterSheet footNailClean = CharacterSheet.evenStrip(
+    Vector2(384, 1024),
+  );
+
+  /// Shared zero-shift alignment for the locked-pose foot strips.
+  static final List<Vector2> footFrameAlignZero = <Vector2>[
+    Vector2.zero(),
+    Vector2.zero(),
+    Vector2.zero(),
+    Vector2.zero(),
+    Vector2.zero(),
+    Vector2.zero(),
+  ];
+
+  /// 2048×768, 4×1 even wash stages for Zeynep.
   static final CharacterSheet handWashDark = CharacterSheet.evenStrip(
-    Vector2(988, 1358),
+    Vector2(512, 768),
   );
 
   /// 1856×1398, 4×1 dirty→clean pinky for Zeynep. Spray uses 0–1, wipe 2–3.
@@ -126,6 +146,98 @@ abstract final class SpriteAtlas {
     Vector2(1024, 1536),
   );
 
+  /// 1536×1024, 4×1 stiletto cutting strip for the light-skin pinky.
+  static final CharacterSheet pinkyStilettoLight = CharacterSheet.evenStrip(
+    Vector2(384, 1024),
+  );
+
+  /// Nail bed inside [AssetPaths.pinkyStilettoPolishMask], measured as the
+  /// mask's opaque bounding box. `_paintPolish` normalises this rect by the
+  /// mask's own width/height, so it must be in mask pixels — and it must be
+  /// the *nail*, not the whole cell: the depth gradient, the gloss streak and
+  /// the fill sweep are all derived from it.
+  static final SpriteRegion pinkyStilettoLightPlate = SpriteRegion(
+    Vector2(102, 447),
+    Vector2(180, 499),
+  );
+
+  /// 1536×1024, 4×1 stiletto cutting strip for the light-skin middle finger.
+  static final CharacterSheet middleStilettoLight = CharacterSheet.evenStrip(
+    Vector2(384, 1024),
+  );
+
+  /// Nail bed inside [AssetPaths.middleStilettoPolishMask].
+  static final SpriteRegion middleStilettoLightPlate = SpriteRegion(
+    Vector2(104, 458),
+    Vector2(179, 478),
+  );
+
+  /// 1536×1024, 4×1 stiletto cutting strip for the light-skin thumb.
+  static final CharacterSheet thumbStilettoLight = CharacterSheet.evenStrip(
+    Vector2(384, 1024),
+  );
+
+  /// Nail bed inside [AssetPaths.thumbStilettoPolishMask].
+  static final SpriteRegion thumbStilettoLightPlate = SpriteRegion(
+    Vector2(102, 458),
+    Vector2(228, 452),
+  );
+
+  /// 1536×1024, 4×1 stiletto cutting strip shared by the dark-skin pinky,
+  /// ring, middle and pointer fingers.
+  static final CharacterSheet pinkyStilettoDark = CharacterSheet.evenStrip(
+    Vector2(384, 1024),
+  );
+
+  /// Nail bed inside [AssetPaths.pinkyStilettoMaskDark]. Measured from the
+  /// mask's own opaque bounding box (113,469)-(297,977) — the previous rect
+  /// stopped ~20px short of the mask's bottom, so the tint fill never
+  /// reached the sharp stiletto tip and left it uncovered.
+  static final SpriteRegion pinkyStilettoDarkPlate = SpriteRegion(
+    Vector2(113, 469),
+    Vector2(184, 508),
+  );
+
+  /// 1536×1024, 4×1 stiletto cutting strip for the dark-skin thumb.
+  static final CharacterSheet thumbStilettoDark = CharacterSheet.evenStrip(
+    Vector2(384, 1024),
+  );
+
+  /// Nail bed inside [AssetPaths.thumbStilettoMaskDark]. Measured from the
+  /// mask's own opaque bounding box (79,464)-(286,983) — the previous rect
+  /// stopped ~25px short of the mask's bottom, so the tint fill never
+  /// reached the sharp stiletto tip and left it uncovered.
+  static final SpriteRegion thumbStilettoDarkPlate = SpriteRegion(
+    Vector2(79, 464),
+    Vector2(207, 519),
+  );
+
+  /// 2103×748, 4×1 dirty→clean strip for [AssetPaths.thumbNailDarkWipe].
+  static final CharacterSheet thumbCleanDarkWipe = CharacterSheet.evenStrip(
+    Vector2(525.75, 748),
+  );
+
+  /// 2172x724, 6x1 whole-foot toenail cutting strip (all toes at once).
+  static final CharacterSheet footNailCut = CharacterSheet.evenStrip(
+    Vector2(362, 724),
+    frames: 6,
+  );
+
+  static final CharacterSheet footWashDark = CharacterSheet.evenStrip(
+    Vector2(384, 1024),
+    frames: 4,
+  );
+
+  static final CharacterSheet footNailCleanDark = CharacterSheet.evenStrip(
+    Vector2(384, 1024),
+    frames: 4,
+  );
+
+  static final CharacterSheet footNailCutDark = CharacterSheet.evenStrip(
+    Vector2(362, 724),
+    frames: 6,
+  );
+
   /// Shared by ring / middle / index on the light hand.
   static final CharacterSheet middleCleanLight = CharacterSheet.evenStrip(
     Vector2(464, 1398),
@@ -148,14 +260,22 @@ abstract final class SpriteAtlas {
     Vector2(464, 1398),
   );
 
+  /// Nail bed inside [AssetPaths.thumbNailMaskLight], measured as the mask's
+  /// own opaque alpha bounding box (100,557)-(283,884) after the mask was
+  /// re-derived from scratch by colour-segmenting `thumb_short_light.png`
+  /// frame 3 (the fully-shortened state shown during
+  /// [NailCareStage.nailPolishing]) rather than smoothing the old mask.
   static final SpriteRegion thumbNailPlateLight = SpriteRegion(
-    Vector2(95, 559),
-    Vector2(193, 324),
+    Vector2(100, 557),
+    Vector2(183, 327),
   );
 
-  /// 833×1446 cartoon finished hand for Lila / Ezgi.
+  /// 769×1024 finished hand for Lila / Ezgi — the hand half of the
+  /// manually-authored `final_hand_withmask_lightsquare.png` reference
+  /// (hand on the left, its 5 nail masks laid out on the right in the same
+  /// pinky→thumb order as the fingers).
   static final CharacterSheet finalHandLight = CharacterSheet(
-    frameSize: Vector2(833, 1446),
+    frameSize: Vector2(769, 1024),
     displayScale: 1,
     footPaddings: const <double>[0],
     framePositions: <Vector2>[Vector2.zero()],
@@ -170,12 +290,190 @@ abstract final class SpriteAtlas {
     framePositions: <Vector2>[Vector2(288, 0)],
   );
 
+  /// Window into the 1067×1474 `final_hand_stiletto.png`, starting at the
+  /// opaque silhouette's origin (139,10) and 820 wide so
+  /// [GameConfig.workspaceHandWidth] scales it 1:1. Height is 1000 (not the
+  /// full canvas) so the displayed hand is ~980–1000px tall, matching
+  /// [finalHandDarkStiletto]'s scaled height — the previous 1360 window made
+  /// this hand ~39% taller on screen than every other reveal, pushing the
+  /// nail tips off the top of the visible play area. The art's wrist is
+  /// alpha-feathered just above this cut, so the window's bottom edge never
+  /// stamps a hard line on the table.
+  ///
+  /// `final_hand_stiletto_mask.png` shares this exact 1067×1474 canvas —
+  /// [_paintLacquerCoat] samples the mask with the art's own src rect, so the
+  /// two must live in the same coordinate space.
+  static final CharacterSheet finalHandStiletto = CharacterSheet(
+    frameSize: Vector2(820, 1000),
+    displayScale: 1,
+    footPaddings: const <double>[0],
+    framePositions: <Vector2>[Vector2(139, 10)],
+  );
+
+  /// 1448×1086 dark-skin stiletto reveal. Window measured from the alpha
+  /// silhouette after the black backdrop was cut out.
+  static final CharacterSheet finalHandDarkStiletto = CharacterSheet(
+    frameSize: Vector2(908, 1079),
+    displayScale: 1,
+    footPaddings: const <double>[0],
+    framePositions: <Vector2>[Vector2(267, 0)],
+  );
+
   /// 1536×1024 still of Zeynep's finished hand. Opaque window only.
   static final CharacterSheet finalHandDark = CharacterSheet(
     frameSize: Vector2(868, 1018),
     displayScale: 1,
     footPaddings: const <double>[0],
     framePositions: <Vector2>[Vector2(344, 0)],
+  );
+
+  /// Per-nail plate rects for the finished-hand lacquer coat, measured from
+  /// each digit mask's own opaque bounding box on its full canvas (same
+  /// canvas the corresponding `final_hand_*` art and [finalHandLight] /
+  /// [finalHandDark] windows are authored on). `_paintLacquerCoat` keys its
+  /// wet-depth gradient and center shine off these — previously it used the
+  /// whole-hand window rect instead of the nail itself, so a nail sitting
+  /// outside the gradient's narrow transition band came out flat/pastel next
+  /// to the live per-digit paint (which has always been plate-relative).
+  /// Re-derived from scratch for round 4: each rect is the corresponding
+  /// `final_hand_light_nail_*.png` mask's own opaque alpha bounding box,
+  /// after the mask itself was rebuilt by colour/luminance-segmenting the
+  /// actual painted nail blob in `final_hand_light.png` per digit (a local
+  /// luminance plateau distinguishes the flat-fill nail from the gradient
+  /// skin), rather than fitting a uniformly-scaled ellipse to a detected
+  /// center as the previous round did.
+  static final SpriteRegion finalHandLightNailPlatePinky = SpriteRegion(
+    Vector2(707, 251),
+    Vector2(53, 84),
+  );
+  static final SpriteRegion finalHandLightNailPlateRing = SpriteRegion(
+    Vector2(542, 82),
+    Vector2(55, 91),
+  );
+  static final SpriteRegion finalHandLightNailPlateMiddle = SpriteRegion(
+    Vector2(422, 13),
+    Vector2(60, 96),
+  );
+  static final SpriteRegion finalHandLightNailPlatePointer = SpriteRegion(
+    Vector2(287, 80),
+    Vector2(56, 86),
+  );
+  static final SpriteRegion finalHandLightNailPlateThumb = SpriteRegion(
+    Vector2(84, 478),
+    Vector2(67, 91),
+  );
+
+  static final SpriteRegion finalHandDarkNailPlatePinky = SpriteRegion(
+    Vector2(346, 661),
+    Vector2(84, 125),
+  );
+  static final SpriteRegion finalHandDarkNailPlateRing = SpriteRegion(
+    Vector2(530, 815),
+    Vector2(88, 156),
+  );
+  static final SpriteRegion finalHandDarkNailPlateMiddle = SpriteRegion(
+    Vector2(751, 868),
+    Vector2(92, 150),
+  );
+  static final SpriteRegion finalHandDarkNailPlatePointer = SpriteRegion(
+    Vector2(963, 814),
+    Vector2(100, 152),
+  );
+  static final SpriteRegion finalHandDarkNailPlateThumb = SpriteRegion(
+    Vector2(1111, 490),
+    Vector2(100, 143),
+  );
+
+  /// Fallback plate for [AssetPaths.finalHandStilettoMask] (the aggregate
+  /// 5-nail mask) — the union of the five nail blobs, measured as that
+  /// mask's own opaque bounding box on the shared 1067×1474 canvas. Live
+  /// rendering uses the per-digit plates below instead, same as the square
+  /// reveal, so each nail gets its own gradient/shine rather than one
+  /// stretched across the whole hand.
+  static final SpriteRegion finalHandStilettoNailPlate = SpriteRegion(
+    Vector2(161, 18),
+    Vector2(785, 818),
+  );
+
+  static final SpriteRegion finalHandStilettoNailPlatePinky = SpriteRegion(
+    Vector2(873, 603),
+    Vector2(69, 226),
+  );
+  static final SpriteRegion finalHandStilettoNailPlateRing = SpriteRegion(
+    Vector2(679, 124),
+    Vector2(63, 209),
+  );
+  static final SpriteRegion finalHandStilettoNailPlateMiddle = SpriteRegion(
+    Vector2(499, 18),
+    Vector2(69, 217),
+  );
+  static final SpriteRegion finalHandStilettoNailPlatePointer = SpriteRegion(
+    Vector2(334, 113),
+    Vector2(64, 215),
+  );
+  static final SpriteRegion finalHandStilettoNailPlateThumb = SpriteRegion(
+    Vector2(161, 348),
+    Vector2(52, 185),
+  );
+  static final SpriteRegion finalHandDarkStilettoNailPlate = SpriteRegion(
+    Vector2(271, 477),
+    Vector2(901, 600),
+  );
+
+  /// Fallback plate for the rare case the per-digit reveal masks/colours
+  /// aren't populated and the aggregate 5-nail mask is used instead — same
+  /// "mask's own bbox" measurement as the per-digit plates above.
+  /// Re-derived for round 4 as the fresh `final_hand_light_nail_mask.png`
+  /// aggregate's own opaque bounding box (the union of the 5 rebuilt
+  /// per-digit masks above).
+  static final SpriteRegion finalHandLightNailPlate = SpriteRegion(
+    Vector2(84, 13),
+    Vector2(676, 556),
+  );
+  static final SpriteRegion finalHandDarkNailPlate = SpriteRegion(
+    Vector2(346, 490),
+    Vector2(864, 527),
+  );
+
+  /// Toe plate for [AssetPaths.footNailPolishMaskLight] / `...Dark`, measured
+  /// from the mask's own opaque bbox within the *last* (fully-cut) cell of
+  /// the 6-cell 2172×724 strip — the only cell the pedicure polish stage
+  /// ever samples (see `showFootPolish`). All five toes share one blob, the
+  /// same limitation the stiletto hand plates have.
+  ///
+  /// `footNailPolishPlateLight` is re-derived from the manually-authored
+  /// `light_toe_mask.png` (opaque bbox on the 2172×724 canvas).
+  static final SpriteRegion footNailPolishPlateLight = SpriteRegion(
+    Vector2(1844, 548),
+    Vector2(287, 127),
+  );
+  static final SpriteRegion footNailPolishPlateDark = SpriteRegion(
+    Vector2(1871, 564),
+    Vector2(275, 120),
+  );
+
+  /// Per-toe plates for the [AssetPaths.finalToeLightNailThumb] etc. split —
+  /// each measured as that toe's own mask opaque bbox on the shared
+  /// 2172×724 canvas.
+  static final SpriteRegion footNailPolishPlateLightThumb = SpriteRegion(
+    Vector2(1844, 607),
+    Vector2(75, 60),
+  );
+  static final SpriteRegion footNailPolishPlateLightPointer = SpriteRegion(
+    Vector2(1942, 635),
+    Vector2(44, 40),
+  );
+  static final SpriteRegion footNailPolishPlateLightMiddle = SpriteRegion(
+    Vector2(1989, 615),
+    Vector2(52, 49),
+  );
+  static final SpriteRegion footNailPolishPlateLightRing = SpriteRegion(
+    Vector2(2042, 586),
+    Vector2(44, 41),
+  );
+  static final SpriteRegion footNailPolishPlateLightPinky = SpriteRegion(
+    Vector2(2086, 552),
+    Vector2(37, 37),
   );
 
   static final CharacterSheet fifthNailClean = CharacterSheet(
@@ -222,6 +520,12 @@ abstract final class SpriteAtlas {
       Vector2(-7.73, 0),
       Vector2(-5.53, 0),
     ],
+  );
+
+  /// 2172×724, 6×1 wipe animation strip. Each frame is 362×724.
+  static final CharacterSheet wipeFrames = CharacterSheet.evenStrip(
+    Vector2(362, 724),
+    frames: 6,
   );
 
   /// Shift applied to [shortNail] after it is drawn at the clean-sheet scale,

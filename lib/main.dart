@@ -12,6 +12,7 @@ import 'controller/nail_glam_game.dart';
 import 'model/player_progress.dart';
 import 'view/arrival_complete_overlay.dart';
 import 'view/arrival_controls_overlay.dart';
+import 'view/care_target_choice_overlay.dart';
 import 'view/customer_thought_bubble_overlay.dart';
 import 'view/home_overlay.dart';
 import 'view/nail_care_overlay.dart';
@@ -118,6 +119,11 @@ class _GameHostState extends State<GameHost> {
                 ),
         NailCareOverlay.id: (BuildContext context, NailGlamGame game) =>
             NailCareOverlay(game: game),
+        CareTargetChoiceOverlay.id: (BuildContext context, NailGlamGame game) =>
+            CareTargetChoiceOverlay(
+              onChooseHand: game.chooseHandCare,
+              onChooseFoot: game.chooseFootCare,
+            ),
       },
       initialActiveOverlays: const <String>[HomeOverlay.id],
     );

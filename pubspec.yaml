@@ -99,6 +99,13 @@ flutter:
     - assets/images/premium_soap.png
     - assets/images/premium_spray.png
     - assets/images/premium_wipe.png
+    - assets/images/soaps_all.png
+    - assets/images/soap_bottle_1.png
+    - assets/images/soap_bottle_2.png
+    - assets/images/soap_bottle_3.png
+    - assets/images/soap_bottle_4.png
+    - assets/images/soap_bottle_5.png
+    - assets/images/soap_bottle_6.png
     - assets/images/tool_soap_1.png
     - assets/images/tool_soap_2.png
     - assets/images/tool_soap_3.png
@@ -115,13 +122,48 @@ flutter:
     - assets/images/tool_wipe_4.png
     - assets/images/tool_wipe_5.png
     - assets/images/tool_wipe_6.png
+    - assets/images/wipe_frames/
     - assets/images/tool_clips_1.png
     - assets/images/tool_clips_2.png
     - assets/images/tool_clips_3.png
     - assets/images/tool_clips_4.png
     - assets/images/tool_clips_5.png
     - assets/images/tool_clips_6.png
-
+    - assets/images/wipe.png
+    - assets/images/clip.png
+    - assets/images/final_hand_withmask_lightsquare.png
+    - assets/images/nail_mask_light_pinky.png
+    - assets/images/pinky_stiletto_nail_light.png
+    - assets/images/middle_nail_stiletto_light.png
+    - assets/images/thumb_nail_stiletto_light.png
+    - assets/images/pinky_stiletto_mask.png
+    - assets/images/middle_nail_mask_light (2).png
+    - assets/images/thumb_nail_light_mask.png
+    - assets/images/nail_preview_square.png
+    - assets/images/nail_preview_stiletto.png
+    - assets/images/final_hand_stiletto.png
+    - assets/images/final_hand_stiletto_mask.png
+    - assets/images/final_hand_stiletto_nail_pinky.png
+    - assets/images/final_hand_stiletto_nail_ring.png
+    - assets/images/final_hand_stiletto_nail_middle.png
+    - assets/images/final_hand_stiletto_nail_pointer.png
+    - assets/images/final_hand_stiletto_nail_thumb.png
+    - assets/images/foot_clean_light.png
+    - assets/images/foot_nail_clean_light.png
+    - assets/images/pinky_nail_stiletto_dark.png
+    - assets/images/pinky_stiletto_mask_dark.png
+    - assets/images/thumb_nail_dark_stiletto.png
+    - assets/images/thumb_stiletto_mask_dark.png
+    - assets/images/toe_nail_cutting_light.png
+    - assets/images/light_toe_mask.png
+    - assets/images/final_toe_light_nail_thumb.png
+    - assets/images/final_toe_light_nail_pointer.png
+    - assets/images/final_toe_light_nail_middle.png
+    - assets/images/final_toe_light_nail_ring.png
+    - assets/images/final_toe_light_nail_pinky.png
+    - assets/images/toe_cleaning_dark.png
+    - assets/images/toe_nail_cleaning_dark.png
+    - assets/images/toe_cutting_dark.png
   fonts:
     - family: Baloo2
       fonts:

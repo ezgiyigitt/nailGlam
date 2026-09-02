@@ -11,6 +11,7 @@ import 'package:nail_glam/model/placeholder_art.dart';
 import 'package:nail_glam/view/arrival_complete_overlay.dart';
 import 'package:nail_glam/view/arrival_controls_overlay.dart';
 import 'package:nail_glam/view/cute_hand_sim.dart';
+import 'package:nail_glam/view/care_target_choice_overlay.dart';
 import 'package:nail_glam/view/customer_thought_bubble_overlay.dart';
 import 'package:nail_glam/view/home_overlay.dart';
 import 'package:nail_glam/view/nail_care_overlay.dart';
@@ -78,10 +79,12 @@ void main() {
     );
   });
 
-  test('kits have eight slots with only the first item owned', () {
-    expect(NailCareInventory.soaps, hasLength(GameConfig.nailCareInventorySlotCount));
-    expect(NailCareInventory.buffers, hasLength(GameConfig.nailCareInventorySlotCount));
-    expect(NailCareInventory.clips, hasLength(GameConfig.nailCareInventorySlotCount));
+  test('kits have their real slot counts with only the first item owned', () {
+    // Soaps, buffers and clips ship 6 real skins today; only brushes (all
+    // sharing one placeholder icon) actually fills all 8 configured slots.
+    expect(NailCareInventory.soaps, hasLength(6));
+    expect(NailCareInventory.buffers, hasLength(6));
+    expect(NailCareInventory.clips, hasLength(6));
     expect(NailCareInventory.brushes, hasLength(GameConfig.nailCareInventorySlotCount));
     expect(NailCareInventory.polishes, hasLength(5));
     expect(
@@ -110,8 +113,8 @@ void main() {
       NailCareInventory.brushes.skip(1).every((item) => !item.unlocked),
       isTrue,
     );
-    expect(NailCareInventory.soaps.first.iconPath, AssetPaths.handSoap);
-    expect(NailCareInventory.soaps[1].iconPath, AssetPaths.toolSoap1);
+    expect(NailCareInventory.soaps.first.iconPath, AssetPaths.toolSoap1);
+    expect(NailCareInventory.soaps[1].iconPath, AssetPaths.toolSoap2);
     expect(NailCareInventory.soaps[1].unlockPrice, greaterThan(0));
     expect(
       NailCareInventory.buffers.first.iconPath,
@@ -133,11 +136,11 @@ void main() {
       ),
       isTrue,
     );
-    expect(NailCareInventory.sprays, hasLength(5));
-    expect(NailCareInventory.sprays.first.iconPath, AssetPaths.nailSpray);
-    expect(NailCareInventory.sprays[1].iconPath, AssetPaths.toolSpray1);
+    expect(NailCareInventory.sprays, hasLength(6));
+    expect(NailCareInventory.sprays.first.iconPath, AssetPaths.toolSpray1);
+    expect(NailCareInventory.sprays[1].iconPath, AssetPaths.toolSpray2);
     expect(NailCareInventory.sprays[1].unlockPrice, greaterThan(0));
-    expect(NailCareInventory.clips[1].iconPath, AssetPaths.toolClips1);
+    expect(NailCareInventory.clips[1].iconPath, AssetPaths.toolClips2);
     expect(NailCareInventory.clips[1].unlockPrice, greaterThan(0));
     expect(NailCareInventory.sprays.first.id, 'spray-0');
     expect(
@@ -199,14 +202,24 @@ void main() {
     await tester.pump();
     expect(find.byKey(const Key('nail-care-inventory-panel')), findsOneWidget);
     expect(find.byKey(const Key('nail-care-slot-soap-0')), findsOneWidget);
-    expect(find.byKey(const Key('nail-care-slot-soap-7')), findsOneWidget);
+    expect(find.byKey(const Key('nail-care-slot-soap-5')), findsOneWidget);
 
+    // Tapping a slot only opens its preview sheet — locked or not — so a
+    // locked skin must never end up selected just from being tapped.
     await tester.tap(find.byKey(const Key('nail-care-slot-soap-1')));
     await tester.pump();
     expect(game.nailCare.selectedItemId, isNull);
+    expect(find.byKey(const Key('nail-care-unlock')), findsOneWidget);
+    expect(find.byKey(const Key('nail-care-equip')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('nail-care-preview-close')));
+    await tester.pump();
     expect(find.byKey(const Key('nail-care-inventory-panel')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('nail-care-slot-soap-0')));
+    await tester.pump();
+    expect(find.byKey(const Key('nail-care-equip')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('nail-care-equip')));
     await tester.pump();
     expect(game.nailCare.selectedItemId, 'soap-0');
     expect(find.byKey(const Key('nail-care-inventory-panel')), findsNothing);
@@ -859,4 +872,9 @@ final Map<String, Widget Function(BuildContext, NailGlamGame)> _overlays =
               ),
       NailCareOverlay.id: (BuildContext context, NailGlamGame game) =>
           NailCareOverlay(game: game),
+      CareTargetChoiceOverlay.id: (BuildContext context, NailGlamGame game) =>
+          CareTargetChoiceOverlay(
+            onChooseHand: game.chooseHandCare,
+            onChooseFoot: game.chooseFootCare,
+          ),
     };

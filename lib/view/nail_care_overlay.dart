@@ -322,40 +322,6 @@ class _NailCareHudState extends State<_NailCareHud> {
             bottom: 280,
             child: _SelectedToolChip(game: game, item: selected),
           ),
-        if (care.showsInventory)
-          Positioned(
-            right: 14,
-            bottom: 156,
-            child: care.showsSplitToolBoxes
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      _KitDrawer(
-                        game: game,
-                        drawerKey: const Key('nail-care-inventory-drawer-spray'),
-                        label: 'Spray',
-                        preview: care.sprayDrawerPreview,
-                        onTap: () =>
-                            care.toggleInventory(NailCareInventory.sprays),
-                      ),
-                      const SizedBox(width: 8),
-                      _KitDrawer(
-                        game: game,
-                        drawerKey: const Key('nail-care-inventory-drawer-wipe'),
-                        label: 'Wipe',
-                        preview: NailCareInventory.buffers.first,
-                        onTap: () =>
-                            care.toggleInventory(NailCareInventory.buffers),
-                      ),
-                    ],
-                  )
-                : _KitDrawer(
-                    game: game,
-                    label: NailCareInventory.kitLabelFor(stage),
-                    preview: kit.isEmpty ? null : kit.first,
-                    onTap: care.toggleInventory,
-                  ),
-          ),
         Positioned(
           left: GameConfig.hudPad,
           right: GameConfig.hudPad,
@@ -407,7 +373,8 @@ class _NailCareHudState extends State<_NailCareHud> {
                   ],
                   _NextButton(
                     enabled: care.canAdvance,
-                    label: stage == NailCareStage.handReveal
+                    label: stage == NailCareStage.handReveal ||
+                            stage == NailCareStage.footReveal
                         ? 'Next customer'
                         : 'NEXT',
                     onPressed: game.advanceNailCare,
@@ -469,6 +436,44 @@ class _NailCareHudState extends State<_NailCareHud> {
               selectedId: care.selectedItemId,
               onSelect: _openPreview,
             ),
+          ),
+        // Painted after the scrim so the drawer buttons stay tappable while
+        // a panel is open — otherwise the scrim (which dismisses on any tap
+        // outside the panel) swallows taps meant to switch straight from one
+        // drawer's panel to the other's.
+        if (care.showsInventory)
+          Positioned(
+            right: 14,
+            bottom: 156,
+            child: care.showsSplitToolBoxes
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      _KitDrawer(
+                        game: game,
+                        drawerKey: const Key('nail-care-inventory-drawer-spray'),
+                        label: 'Spray',
+                        preview: care.sprayDrawerPreview,
+                        onTap: () =>
+                            care.toggleInventory(NailCareInventory.sprays),
+                      ),
+                      const SizedBox(width: 8),
+                      _KitDrawer(
+                        game: game,
+                        drawerKey: const Key('nail-care-inventory-drawer-wipe'),
+                        label: 'Wipe',
+                        preview: NailCareInventory.buffers.first,
+                        onTap: () =>
+                            care.toggleInventory(NailCareInventory.buffers),
+                      ),
+                    ],
+                  )
+                : _KitDrawer(
+                    game: game,
+                    label: NailCareInventory.kitLabelFor(stage),
+                    preview: kit.isEmpty ? null : kit.first,
+                    onTap: care.toggleInventory,
+                  ),
           ),
         if (_previewItem != null)
           Positioned.fill(
@@ -572,9 +577,9 @@ class _NailShapePicker extends StatelessWidget {
       key: const Key('nail-shape-picker'),
       color: const Color(0xF7FFF8FC),
       elevation: 18,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(24),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
@@ -588,30 +593,100 @@ class _NailShapePicker extends StatelessWidget {
                 decoration: TextDecoration.none,
               ),
             ),
-            const SizedBox(height: 10),
-            SegmentedButton<NailShape>(
-              key: const Key('nail-shape-segmented-control'),
-              segments: const <ButtonSegment<NailShape>>[
-                ButtonSegment<NailShape>(
-                  value: NailShape.square,
-                  label: Text('Square'),
-                  icon: Icon(Icons.crop_square_rounded),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _ShapeCard(
+                  label: 'Square',
+                  previewAsset: 'assets/images/nail_preview_square.png',
+                  selected: selected == NailShape.square,
+                  onTap: () => onSelected(NailShape.square),
                 ),
-                ButtonSegment<NailShape>(
-                  value: NailShape.almond,
-                  label: Text('Almond'),
-                  icon: Icon(Icons.change_history_rounded),
-                ),
-                ButtonSegment<NailShape>(
-                  value: NailShape.stiletto,
-                  label: Text('Stiletto'),
-                  icon: Icon(Icons.whatshot_rounded),
+                const SizedBox(width: 14),
+                _ShapeCard(
+                  label: 'Stiletto',
+                  previewAsset: 'assets/images/nail_preview_stiletto.png',
+                  selected: selected == NailShape.stiletto,
+                  onTap: () => onSelected(NailShape.stiletto),
                 ),
               ],
-              selected: <NailShape>{selected},
-              onSelectionChanged: (Set<NailShape> values) {
-                onSelected(values.first);
-              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShapeCard extends StatelessWidget {
+  const _ShapeCard({
+    required this.label,
+    required this.previewAsset,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String previewAsset;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 110,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFFFE4F0) : const Color(0xFFFFF0F6),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? const Color(0xFFD6618A) : const Color(0xFFEEC4D8),
+            width: selected ? 2.5 : 1.5,
+          ),
+          boxShadow: selected
+              ? <BoxShadow>[
+                  const BoxShadow(
+                    color: Color(0x22D6618A),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? const Color(0xFFD6618A) : const Color(0xFFEEC4D8),
+                  width: 2,
+                ),
+              ),
+              child: ClipOval(
+                child: Image.asset(
+                  previewAsset,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: NailCareOverlay._uiFont,
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                color: selected ? const Color(0xFFD6618A) : const Color(0xFF8A6070),
+                decoration: TextDecoration.none,
+              ),
             ),
           ],
         ),

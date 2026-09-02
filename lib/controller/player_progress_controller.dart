@@ -66,6 +66,10 @@ class PlayerProgressController extends ChangeNotifier {
 
   bool buyShopItem(ShopItem item) => _model.buy(item);
 
+  /// Re-equips an already-owned piece (e.g. switching back to the starter
+  /// chair/table after buying a premium one).
+  bool equipShopItem(ShopItem item) => _model.equip(item);
+
   int claimDailyLogin() => _model.claimDailyLogin();
 
   // --- Actions (gameplay controller) ---

@@ -15,6 +15,19 @@ void main() {
 
     expect(find.byKey(const Key('shop-showroom')), findsOneWidget);
     expect(find.byType(ListView), findsNothing);
+
+    // Starter chair leads the showroom so players can always swipe back to
+    // their free default piece after buying a premium one.
+    expect(find.text(SalonCatalog.starterChair.name), findsOneWidget);
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const Key('shop-showroom'))),
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.moveBy(const Offset(-800, 0));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
     expect(find.text(SalonCatalog.pinkChair.name), findsOneWidget);
     expect(find.byKey(Key('shop-buy-${SalonCatalog.pinkChair.id}')), findsOneWidget);
     expect(progress.owns(SalonCatalog.pinkChair.id), isFalse);
@@ -40,7 +53,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(Key('shop-buy-${SalonCatalog.pinkChair.id}')),
+      find.byKey(Key('shop-buy-${SalonCatalog.starterChair.id}')),
       findsOneWidget,
     );
 
@@ -54,7 +67,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(Key('shop-buy-${SalonCatalog.goldChair.id}')),
+      find.byKey(Key('shop-buy-${SalonCatalog.pinkChair.id}')),
       findsOneWidget,
     );
   });

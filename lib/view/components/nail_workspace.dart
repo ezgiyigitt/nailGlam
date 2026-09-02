@@ -14,6 +14,106 @@ import 'package:nail_glam/model/sprite_atlas.dart';
 
 import 'soft_shadow_component.dart';
 
+/// Paints one coat of glossy lacquer clipped to [mask], with the tint,
+/// wet-depth gradient and center shine all keyed to [plate] — the nail's own
+/// bounding rect inside [dest] — rather than to [dest] itself. Shared by the
+/// live per-digit paint ([_LockedFingerCloseup._paintPolish]) and the
+/// finished-hand reveal paint ([_WashingHand._paintLacquerCoat]) so the two
+/// read as the exact same polish. Before this was shared, the finished coat
+/// keyed its depth/shine gradients off the whole-hand rect instead of the
+/// nail plate: a nail sitting outside the gradient's narrow transition band
+/// came out flat and pastel next to the vivid live coat.
+void _paintNailLacquerCoat(
+  ui.Canvas canvas,
+  ui.Rect dest,
+  ui.Rect plate,
+  ui.Image mask,
+  ui.Rect maskSrc,
+  int coatColor,
+) {
+  final base = ui.Color(coatColor);
+  final maskPaint = ui.Paint()
+    ..filterQuality = FilterQuality.high
+    ..blendMode = ui.BlendMode.dstIn
+    ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 0.6);
+
+  // 1) Lacquer body: tint the nail, keep its natural gloss/shading.
+  canvas.saveLayer(dest, ui.Paint()..blendMode = ui.BlendMode.color);
+  canvas.drawRect(plate.inflate(1), ui.Paint()..color = base.withAlpha(238));
+  canvas.drawImageRect(mask, maskSrc, dest, maskPaint);
+  canvas.restore();
+
+  // 2) Wet depth: slightly richer at the cuticle, lighter toward the free edge.
+  canvas.saveLayer(dest, ui.Paint());
+  canvas.drawRect(
+    plate,
+    ui.Paint()
+      ..blendMode = ui.BlendMode.softLight
+      ..shader = ui.Gradient.linear(
+        ui.Offset(plate.center.dx, plate.top),
+        ui.Offset(plate.center.dx, plate.bottom),
+        const <ui.Color>[
+          ui.Color(0x33000000),
+          ui.Color(0x00000000),
+          ui.Color(0x44FFFFFF),
+        ],
+        const <double>[0, 0.55, 1],
+      ),
+  );
+  canvas.drawImageRect(mask, maskSrc, dest, maskPaint);
+  canvas.restore();
+
+  // 3) Wet center streak — follows the still's vertical highlight.
+  final shine = ui.Rect.fromCenter(
+    center: ui.Offset(
+      plate.center.dx - plate.width * 0.06,
+      plate.center.dy - plate.height * 0.02,
+    ),
+    width: plate.width * 0.2,
+    height: plate.height * 0.86,
+  );
+  canvas.saveLayer(dest, ui.Paint());
+  canvas.drawRRect(
+    ui.RRect.fromRectAndRadius(shine, ui.Radius.circular(shine.width * 0.5)),
+    ui.Paint()
+      ..shader = ui.Gradient.linear(
+        ui.Offset(shine.center.dx, shine.top),
+        ui.Offset(shine.center.dx, shine.bottom),
+        const <ui.Color>[
+          ui.Color(0x00FFFFFF),
+          ui.Color(0xCCFFFFFF),
+          ui.Color(0x66FFFFFF),
+          ui.Color(0x00FFFFFF),
+        ],
+        const <double>[0, 0.18, 0.55, 1],
+      ),
+  );
+  canvas.drawImageRect(mask, maskSrc, dest, maskPaint);
+  canvas.restore();
+}
+
+/// Maps a mask-pixel-space [plate] into [dest]'s coordinate space, through
+/// whatever [maskSrc] crop window the mask is being sampled through (mirrors
+/// how the mask image itself gets drawn — see [_paintNailLacquerCoat]
+/// callers). For an uncropped mask (`maskSrc` spans the whole image, as in
+/// [_LockedFingerCloseup._paintPolish]) this reduces to the plain
+/// width/height normalisation that method has always used. Falls back to the
+/// full [dest] rect when no plate is registered for this mask (better than
+/// crashing; only affects assets nobody has measured a plate for yet).
+ui.Rect _mapLacquerPlate(SpriteRegion? plate, ui.Rect maskSrc, ui.Rect dest) {
+  if (plate == null) {
+    return dest;
+  }
+  final scaleX = dest.width / maskSrc.width;
+  final scaleY = dest.height / maskSrc.height;
+  return ui.Rect.fromLTWH(
+    dest.left + (plate.position.x - maskSrc.left) * scaleX,
+    dest.top + (plate.position.y - maskSrc.top) * scaleY,
+    plate.size.x * scaleX,
+    plate.size.y * scaleY,
+  );
+}
+
 /// Full-screen manicure page: a 3D tabletop with a locked-pose washing hand.
 ///
 /// This is a new page, not a zoom of the salon. While revealed it covers the
@@ -52,6 +152,10 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
   late ui.Image _lightFinalPolishMask;
   late final Map<NailDigit, ui.Image> _lightFinalDigitMasks =
       <NailDigit, ui.Image>{};
+  late final Map<NailDigit, ui.Image> _lightStilettoFinalDigitMasks =
+      <NailDigit, ui.Image>{};
+  late final Map<NailDigit, ui.Image> _lightToeDigitMasks =
+      <NailDigit, ui.Image>{};
   late ui.Image _darkCleanImage;
   late ui.Image _darkShortImage;
   late ui.Image _darkPolishMask;
@@ -72,9 +176,7 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
   late final ui.Image _ringSprayImage;
   late final ui.Image _ringWipeImage;
   late final ui.Image _shortNailImage;
-  late final ui.Image _stilettoNailImage;
   late final ui.Image _polishMask;
-  late final ui.Image _stilettoPolishMask;
   late final ui.Image _ringCleanImage;
   late final ui.Image _ringShortImage;
   late final ui.Image _ringPolishMask;
@@ -87,6 +189,9 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
   late final ui.Image _thumbCleanImage;
   late final ui.Image _thumbShortImage;
   late final ui.Image _thumbPolishMask;
+  late List<Sprite> _footWashFrames;
+  late List<Sprite> _footNailCleanFrames;
+  late List<Sprite> _footNailCutFrames;
 
   GuestCareKit _kit = GuestCareCatalog.light;
 
@@ -149,33 +254,33 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
     ]);
     _lightFinalPolishMask = await _loadOptional(
       AssetPaths.finalHandLightNailMask,
-      width: 833,
-      height: 1446,
+      width: 769,
+      height: 1024,
     );
     _lightFinalDigitMasks[NailDigit.pinky] = await _loadOptional(
       AssetPaths.finalHandLightNailPinky,
-      width: 833,
-      height: 1446,
+      width: 769,
+      height: 1024,
     );
     _lightFinalDigitMasks[NailDigit.ring] = await _loadOptional(
       AssetPaths.finalHandLightNailRing,
-      width: 833,
-      height: 1446,
+      width: 769,
+      height: 1024,
     );
     _lightFinalDigitMasks[NailDigit.middle] = await _loadOptional(
       AssetPaths.finalHandLightNailMiddle,
-      width: 833,
-      height: 1446,
+      width: 769,
+      height: 1024,
     );
     _lightFinalDigitMasks[NailDigit.pointer] = await _loadOptional(
       AssetPaths.finalHandLightNailPointer,
-      width: 833,
-      height: 1446,
+      width: 769,
+      height: 1024,
     );
     _lightFinalDigitMasks[NailDigit.thumb] = await _loadOptional(
       AssetPaths.finalHandLightNailThumb,
-      width: 833,
-      height: 1446,
+      width: 769,
+      height: 1024,
     );
     _darkCleanImage = await game.images.load(AssetPaths.pinkyCleanDark);
     _darkShortImage = await game.images.load(AssetPaths.pinkyShortDark);
@@ -217,8 +322,25 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
     _pinkySprayImage = await game.images.load(AssetPaths.fifthNailSpray);
     _pinkyWipeImage = await game.images.load(AssetPaths.fifthNailWipe);
     _shortNailImage = await game.images.load(AssetPaths.shortNail);
-    _stilettoNailImage = await game.images.load(AssetPaths.pinkyStilettoNail);
-    _stilettoPolishMask = await game.images.load(AssetPaths.nailMaskLightPinky);
+    // Stiletto clip art + masks are addressed by asset path through the kit
+    // (see [setNailShape]); warming the cache is all this needs to do.
+    await game.images.loadAll(<String>[
+      AssetPaths.pinkyStilettoNailLight,
+      AssetPaths.middleNailStilettoLight,
+      AssetPaths.thumbNailStilettoLight,
+      AssetPaths.pinkyStilettoNailDark,
+      AssetPaths.thumbStilettoNailDark,
+      AssetPaths.thumbNailDarkWipe,
+    ]);
+    for (final String mask in <String>[
+      AssetPaths.pinkyStilettoPolishMask,
+      AssetPaths.middleStilettoPolishMask,
+      AssetPaths.thumbStilettoPolishMask,
+      AssetPaths.pinkyStilettoMaskDark,
+      AssetPaths.thumbStilettoMaskDark,
+    ]) {
+      await _loadOptional(mask, width: 384, height: 1024);
+    }
     _polishMask = await _loadOptional(
       AssetPaths.pinkNailMask,
       width: 384,
@@ -261,6 +383,78 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
       AssetPaths.nailClips,
       AssetPaths.manicurePillowTop,
     ]);
+    await game.images.loadAll(<String>[
+      AssetPaths.footCleanLight,
+      AssetPaths.footNailCleanLight,
+      AssetPaths.footCleanDark,
+      AssetPaths.footNailCleanDark,
+      AssetPaths.footNailCutStripDark,
+      AssetPaths.footNailPolishMaskLight,
+      AssetPaths.footNailPolishMaskDark,
+      AssetPaths.finalToeLightNailThumb,
+      AssetPaths.finalToeLightNailPointer,
+      AssetPaths.finalToeLightNailMiddle,
+      AssetPaths.finalToeLightNailRing,
+      AssetPaths.finalToeLightNailPinky,
+    ]);
+    _lightToeDigitMasks[NailDigit.thumb] = game.images.fromCache(
+      AssetPaths.finalToeLightNailThumb,
+    );
+    _lightToeDigitMasks[NailDigit.pointer] = game.images.fromCache(
+      AssetPaths.finalToeLightNailPointer,
+    );
+    _lightToeDigitMasks[NailDigit.middle] = game.images.fromCache(
+      AssetPaths.finalToeLightNailMiddle,
+    );
+    _lightToeDigitMasks[NailDigit.ring] = game.images.fromCache(
+      AssetPaths.finalToeLightNailRing,
+    );
+    _lightToeDigitMasks[NailDigit.pinky] = game.images.fromCache(
+      AssetPaths.finalToeLightNailPinky,
+    );
+    _footWashFrames = _spritesFor(
+      game.images.fromCache(_kit.footWashAsset),
+      _kit.footWashSheet,
+    );
+    _footNailCleanFrames = _spritesFor(
+      game.images.fromCache(_kit.footNailCleanAsset),
+      _kit.footNailCleanSheet,
+    );
+    await game.images.loadAll(<String>[
+      AssetPaths.finalHandStiletto,
+      AssetPaths.finalHandDarkStiletto,
+    ]);
+    // Full 1067×1474 canvas, not the 820×1360 window — the mask is sampled
+    // with the same src rect as the nail art (see _paintLacquerCoat), so it
+    // must share the art's un-cropped coordinate space.
+    await _loadOptional(
+      AssetPaths.finalHandStilettoMask,
+      width: 1067,
+      height: 1474,
+    );
+    for (final entry in <NailDigit, String>{
+      NailDigit.pinky: AssetPaths.finalHandStilettoNailPinky,
+      NailDigit.ring: AssetPaths.finalHandStilettoNailRing,
+      NailDigit.middle: AssetPaths.finalHandStilettoNailMiddle,
+      NailDigit.pointer: AssetPaths.finalHandStilettoNailPointer,
+      NailDigit.thumb: AssetPaths.finalHandStilettoNailThumb,
+    }.entries) {
+      _lightStilettoFinalDigitMasks[entry.key] = await _loadOptional(
+        entry.value,
+        width: 1067,
+        height: 1474,
+      );
+    }
+    await _loadOptional(
+      AssetPaths.finalHandDarkStilettoMask,
+      width: 1448,
+      height: 1086,
+    );
+    await game.images.load(AssetPaths.footNailCutStrip);
+    _footNailCutFrames = _spritesFor(
+      game.images.fromCache(_kit.footNailCutAsset),
+      _kit.footNailCutSheet,
+    );
     try {
       await game.images.load(AssetPaths.polishBrush);
     } catch (_) {}
@@ -377,6 +571,18 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
     final finalImage = game.images.fromCache(kit.finalHandAsset);
     _washFrames = _spritesFor(washImage, kit.washSheet);
     _finalFrames = _spritesFor(finalImage, kit.finalHandSheet);
+    _footWashFrames = _spritesFor(
+      game.images.fromCache(kit.footWashAsset),
+      kit.footWashSheet,
+    );
+    _footNailCleanFrames = _spritesFor(
+      game.images.fromCache(kit.footNailCleanAsset),
+      kit.footNailCleanSheet,
+    );
+    _footNailCutFrames = _spritesFor(
+      game.images.fromCache(kit.footNailCutAsset),
+      kit.footNailCutSheet,
+    );
     resetCare();
   }
 
@@ -483,16 +689,80 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
     _applyOpacity(_opacity);
   }
 
-  /// Finished manicure still from the active guest's reveal art.
-  void showFinishedHand([Map<NailDigit, int>? polishByDigit]) {
+  /// Finished manicure still from the active guest's reveal art. When
+  /// [useStiletto] is true (every cut nail was stiletto shaped), the
+  /// stiletto-specific hand still and its single unified mask replace the
+  /// guest's normal square-nail reveal art.
+  void showFinishedHand([
+    Map<NailDigit, int>? polishByDigit,
+    bool useStiletto = false,
+  ]) {
     _showingPinky = false;
     _showingFinishedHand = true;
+    hideSprayMist();
+    _hand.position.y = GameConfig.workspaceHandCenterY;
+    final stilettoAsset = _kit.stilettoFinalHandAsset;
+    final stilettoSheet = _kit.stilettoFinalHandSheet;
+    if (useStiletto && stilettoAsset != null && stilettoSheet != null) {
+      final scale = GameConfig.workspaceHandWidth / stilettoSheet.frameSize.x;
+      final maskAsset = _kit.stilettoFinalHandMaskAsset;
+      _hand.frames = _spritesFor(
+        game.images.fromCache(stilettoAsset),
+        stilettoSheet,
+      );
+      _hand.frameAlign = <Vector2>[Vector2.zero()];
+      _hand.size.setFrom(stilettoSheet.frameSize * scale);
+      _hand.cleanliness = 1;
+      _hand.hardCut = false;
+      _hand.polishMask = maskAsset == null
+          ? null
+          : game.images.fromCache(maskAsset);
+      _hand.polishPlate = maskAsset == AssetPaths.finalHandDarkStilettoMask
+          ? SpriteAtlas.finalHandDarkStilettoNailPlate
+          : maskAsset == AssetPaths.finalHandStilettoMask
+          ? SpriteAtlas.finalHandStilettoNailPlate
+          : null;
+      if (maskAsset == AssetPaths.finalHandStilettoMask) {
+        // Per-digit masks + plates, same as the square reveal: each nail
+        // gets its own gradient/shine instead of one stretched across a
+        // plate spanning the whole hand (which washed out whichever finger
+        // sat nearest that plate's horizontal centre — usually the middle
+        // finger).
+        _hand.digitPolishMasks = Map<NailDigit, ui.Image>.from(
+          _lightStilettoFinalDigitMasks,
+        );
+        _hand.digitPolishPlates = _stilettoFinalDigitPlates;
+        _hand.polishByDigit = Map<NailDigit, int>.from(
+          polishByDigit ?? const <NailDigit, int>{},
+        );
+        _hand.polishColor = _pinky.polishColor;
+      } else {
+        // Dark stiletto still has only the single unified mask — fall back
+        // to one colour for the whole hand, same as before.
+        _hand.digitPolishMasks = <NailDigit, ui.Image>{};
+        _hand.digitPolishPlates = <NailDigit, SpriteRegion>{};
+        _hand.polishByDigit = <NailDigit, int>{};
+        _hand.polishColor =
+            (polishByDigit != null && polishByDigit.isNotEmpty)
+            ? polishByDigit.values.last
+            : _pinky.polishColor;
+      }
+      _hand.polishFill = 1;
+      // The light stiletto art points its fingers *up*, so its nails sit in
+      // the very rows the top wrist-fade eats; its wrist is alpha-feathered
+      // in the asset instead. The dark stiletto art still needs the fade.
+      _hand.wristFadeEndOverride =
+          stilettoAsset == AssetPaths.finalHandStiletto ? 0.0 : null;
+      _applyOpacity(_opacity);
+      return;
+    }
     final sheet = _kit.finalHandSheet;
     final scale = GameConfig.workspaceHandWidth / sheet.frameSize.x;
     _hand.frames = _finalFrames;
     _hand.frameAlign = sheet.frameAlign;
     _hand.size.setFrom(sheet.frameSize * scale);
     _hand.cleanliness = 1;
+    _hand.hardCut = false;
     final dark = _kit.finalHandAsset == AssetPaths.finalHandDark;
     final light = _kit.finalHandAsset == AssetPaths.finalHandLight;
     _hand.polishMask = dark
@@ -505,29 +775,204 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
         : light
         ? Map<NailDigit, ui.Image>.from(_lightFinalDigitMasks)
         : <NailDigit, ui.Image>{};
+    _hand.digitPolishPlates = dark
+        ? _darkFinalDigitPlates
+        : light
+        ? _lightFinalDigitPlates
+        : <NailDigit, SpriteRegion>{};
+    _hand.polishPlate = dark
+        ? SpriteAtlas.finalHandDarkNailPlate
+        : light
+        ? SpriteAtlas.finalHandLightNailPlate
+        : null;
     _hand.polishByDigit = Map<NailDigit, int>.from(
       polishByDigit ?? const <NailDigit, int>{},
     );
     _hand.polishColor = _pinky.polishColor;
     _hand.polishFill = (dark || light) ? 1 : 0;
-    hideSprayMist();
+    // [finalHandLight]'s real-photo canvas has fingertips almost at y=0 —
+    // the normal wrist-fade fraction (tuned for the old tall cartoon
+    // canvas) faded out most of the polish on every finger but the thumb.
+    // The photo already feathers its own edges, so it barely needs one.
+    _hand.wristFadeEndOverride = light ? 0.0 : null;
     _applyOpacity(_opacity);
   }
+
+  static final Map<NailDigit, SpriteRegion> _lightFinalDigitPlates =
+      <NailDigit, SpriteRegion>{
+        NailDigit.pinky: SpriteAtlas.finalHandLightNailPlatePinky,
+        NailDigit.ring: SpriteAtlas.finalHandLightNailPlateRing,
+        NailDigit.middle: SpriteAtlas.finalHandLightNailPlateMiddle,
+        NailDigit.pointer: SpriteAtlas.finalHandLightNailPlatePointer,
+        NailDigit.thumb: SpriteAtlas.finalHandLightNailPlateThumb,
+      };
+
+  static final Map<NailDigit, SpriteRegion> _darkFinalDigitPlates =
+      <NailDigit, SpriteRegion>{
+        NailDigit.pinky: SpriteAtlas.finalHandDarkNailPlatePinky,
+        NailDigit.ring: SpriteAtlas.finalHandDarkNailPlateRing,
+        NailDigit.middle: SpriteAtlas.finalHandDarkNailPlateMiddle,
+        NailDigit.pointer: SpriteAtlas.finalHandDarkNailPlatePointer,
+        NailDigit.thumb: SpriteAtlas.finalHandDarkNailPlateThumb,
+      };
+
+  static final Map<NailDigit, SpriteRegion> _stilettoFinalDigitPlates =
+      <NailDigit, SpriteRegion>{
+        NailDigit.pinky: SpriteAtlas.finalHandStilettoNailPlatePinky,
+        NailDigit.ring: SpriteAtlas.finalHandStilettoNailPlateRing,
+        NailDigit.middle: SpriteAtlas.finalHandStilettoNailPlateMiddle,
+        NailDigit.pointer: SpriteAtlas.finalHandStilettoNailPlatePointer,
+        NailDigit.thumb: SpriteAtlas.finalHandStilettoNailPlateThumb,
+      };
 
   void _showWashHand({required double cleanliness}) {
     _showingPinky = false;
     _showingFinishedHand = false;
+    _hand.position.y = GameConfig.workspaceHandCenterY;
     final wash = _kit.washSheet;
     final scale = GameConfig.workspaceHandWidth / wash.frameSize.x;
     _hand.frames = _washFrames;
     _hand.frameAlign = _kit.washFrameAlign;
     _hand.size.setFrom(wash.frameSize * scale);
     _hand.cleanliness = cleanliness;
+    _hand.hardCut = false;
     _hand.polishFill = 0;
     _hand.polishMask = null;
     _hand.digitPolishMasks = <NailDigit, ui.Image>{};
     _hand.polishByDigit = <NailDigit, int>{};
   }
+
+  /// Whole-foot soap wash, mirrors [_showWashHand] but on the foot art.
+  void showFootWashHand({double cleanliness = 0}) {
+    _showingPinky = false;
+    _showingFinishedHand = false;
+    _hand.position.y = GameConfig.workspaceHandCenterY;
+    final scale = GameConfig.workspaceFootWidth / _kit.footWashSheet.frameSize.x;
+    _hand.frames = _footWashFrames;
+    _hand.frameAlign = SpriteAtlas.footFrameAlignZero;
+    _hand.size.setFrom(_kit.footWashSheet.frameSize * scale);
+    _hand.cleanliness = cleanliness;
+    // The 4 source photos aren't on a locked pivot (each shifts/zooms
+    // slightly), so cross-dissolving between them doubles-exposes two foot
+    // positions at once. Hard-cut instead of blending.
+    _hand.hardCut = true;
+    _hand.polishFill = 0;
+    _hand.polishMask = null;
+    _hand.digitPolishMasks = <NailDigit, ui.Image>{};
+    _hand.polishByDigit = <NailDigit, int>{};
+  }
+
+  /// Dirt lifts across the four foot-wash cells, same easing as [setWashProgress].
+  void setFootWashProgress(double progress) {
+    final t = progress.clamp(0.0, 1.0);
+    showFootWashHand(cleanliness: t * t * (3 - 2 * t));
+    _applyOpacity(_opacity);
+  }
+
+  /// Whole-foot toenail spray/wipe stages, driven by combined 0–1 progress.
+  void showFootNailCleanHand({double cleanliness = 0}) {
+    _showingPinky = false;
+    _showingFinishedHand = false;
+    _hand.position.y = GameConfig.workspaceHandCenterY;
+    final scale =
+        GameConfig.workspaceFootWidth / _kit.footNailCleanSheet.frameSize.x;
+    _hand.frames = _footNailCleanFrames;
+    _hand.frameAlign = SpriteAtlas.footFrameAlignZero;
+    _hand.size.setFrom(_kit.footNailCleanSheet.frameSize * scale);
+    _hand.cleanliness = cleanliness;
+    _hand.hardCut = true;
+    _hand.polishFill = 0;
+    _hand.polishMask = null;
+    _hand.digitPolishMasks = <NailDigit, ui.Image>{};
+    _hand.polishByDigit = <NailDigit, int>{};
+  }
+
+  void setFootNailCleanProgress(double progress) {
+    showFootNailCleanHand(cleanliness: progress.clamp(0.0, 1.0));
+    _applyOpacity(_opacity);
+  }
+
+  /// Whole-foot toenail cutting strip — one clip snip steps to the next of
+  /// the 4 frames, all toes shortening together (mirrors [setShortNailFrame]
+  /// but for the foot card).
+  void showFootNailCutFrame(int frame) {
+    _showingPinky = false;
+    _showingFinishedHand = false;
+    // The cut sheet is a different, tighter-cropped photoshoot than
+    // wash/clean (see [GuestCareKit.footNailCutVerticalOffset]) — without
+    // this nudge the toes jump the moment cutting starts.
+    _hand.position.y =
+        GameConfig.workspaceHandCenterY + _kit.footNailCutVerticalOffset;
+    final sheet = _kit.footNailCutSheet;
+    final scale = GameConfig.workspaceFootWidth / sheet.frameSize.x;
+    _hand.frames = _footNailCutFrames;
+    _hand.frameAlign = SpriteAtlas.footFrameAlignZero;
+    _hand.size.setFrom(sheet.frameSize * scale);
+    final last = sheet.frameCount - 1;
+    _hand.cleanliness = last <= 0 ? 0 : frame.clamp(0, last) / last;
+    _hand.hardCut = true;
+    _hand.polishFill = 0;
+    _hand.polishMask = null;
+    _hand.digitPolishMasks = <NailDigit, ui.Image>{};
+    _hand.polishByDigit = <NailDigit, int>{};
+    _applyOpacity(_opacity);
+  }
+
+  /// Lacquer every toenail on the finished cut frame. [fill] sweeps 0→1 the
+  /// way [setPolishFill] does for a single finger, and the colour comes from
+  /// the same picker, so a pedicure reads like the manicure it mirrors.
+  void showFootPolish({required int color, double fill = 0}) {
+    _showingPinky = false;
+    _showingFinishedHand = false;
+    // Same sheet as the cut stage, same nudge — see [showFootNailCutFrame].
+    _hand.position.y =
+        GameConfig.workspaceHandCenterY + _kit.footNailCutVerticalOffset;
+    final sheet = _kit.footNailCutSheet;
+    final scale = GameConfig.workspaceFootWidth / sheet.frameSize.x;
+    _hand.frames = _footNailCutFrames;
+    _hand.frameAlign = SpriteAtlas.footFrameAlignZero;
+    _hand.size.setFrom(sheet.frameSize * scale);
+    // Hold the fully clipped toes; only the lacquer animates from here.
+    _hand.cleanliness = 1;
+    _hand.hardCut = true;
+    final dark = _kit.footNailPolishMaskAsset == AssetPaths.footNailPolishMaskDark;
+    _hand.polishMask = game.images.fromCache(_kit.footNailPolishMaskAsset);
+    _hand.polishPlate = dark
+        ? SpriteAtlas.footNailPolishPlateDark
+        : SpriteAtlas.footNailPolishPlateLight;
+    if (dark) {
+      // Dark foot still has only the single unified mask.
+      _hand.digitPolishMasks = <NailDigit, ui.Image>{};
+      _hand.digitPolishPlates = <NailDigit, SpriteRegion>{};
+      _hand.polishByDigit = <NailDigit, int>{};
+    } else {
+      // Per-toe masks + plates, same fix as the stiletto hand: each toe
+      // gets its own gradient/shine instead of one stretched across a
+      // plate spanning the whole foot (which washed out whichever toe sat
+      // nearest that plate's centre). All 5 toes still take the same
+      // colour — [polishByDigit] here exists only to key the per-digit
+      // paint loop, not to track distinct choices per toe.
+      _hand.digitPolishMasks = Map<NailDigit, ui.Image>.from(
+        _lightToeDigitMasks,
+      );
+      _hand.digitPolishPlates = _toeDigitPlates;
+      _hand.polishByDigit = <NailDigit, int>{
+        for (final digit in _toeDigitPlates.keys) digit: color,
+      };
+    }
+    _hand.polishColor = color;
+    _hand.polishFill = fill.clamp(0.0, 1.0);
+    _applyOpacity(_opacity);
+  }
+
+  static final Map<NailDigit, SpriteRegion> _toeDigitPlates =
+      <NailDigit, SpriteRegion>{
+        NailDigit.thumb: SpriteAtlas.footNailPolishPlateLightThumb,
+        NailDigit.pointer: SpriteAtlas.footNailPolishPlateLightPointer,
+        NailDigit.middle: SpriteAtlas.footNailPolishPlateLightMiddle,
+        NailDigit.ring: SpriteAtlas.footNailPolishPlateLightRing,
+        NailDigit.pinky: SpriteAtlas.footNailPolishPlateLightPinky,
+      };
 
   void beginSprayTreatment(NailDigit digit, {int frame = 0}) {
     showFinger(digit, frame: frame);
@@ -789,20 +1234,67 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
     _applyOpacity(_opacity);
   }
 
-  void setNailShape(NailShape shape) {
+  /// Swap the clip sheet + polish mask for the chosen shape, always staying on
+  /// the seated guest's own art.
+  ///
+  /// Both branches must come from [_kit]: borrowing the legacy cartoon short
+  /// sheet here is what used to jitter the nail between clip frames (its
+  /// [CharacterSheet.frameAlign] carries a per-frame shift) and paint the
+  /// cartoon mask onto a photographic hand.
+  void setNailShape(NailShape shape, {NailDigit digit = NailDigit.pinky}) {
+    // Every mask below is registered to its own art, so no nudge is needed.
+    _pinky.polishMaskRotation = 0;
+    _pinky.polishMaskPivot = const ui.Offset(0.5, 0.5);
+
     if (shape == NailShape.stiletto) {
-      _pinky.shortImage = _stilettoNailImage;
-      _pinky.shortSheet = SpriteAtlas.pinkyStilettoNail;
-      _pinky.polishMask = _stilettoPolishMask;
-      _pinky.polishPlate = SpriteAtlas.pinkyStilettoNailPlate;
-      _pinky.shortAlign = Vector2.zero();
-    } else {
-      _pinky.shortImage = _shortNailImage;
-      _pinky.shortSheet = SpriteAtlas.shortNail;
-      _pinky.polishMask = _polishMask;
-      _pinky.polishPlate = SpriteAtlas.pinkNailPlate;
-      _pinky.shortAlign = SpriteAtlas.shortNailAlign;
+      final stiletto = _kit.stilettoArtFor(digit);
+      if (stiletto != null) {
+        _pinky.shortImage = game.images.fromCache(stiletto.shortAsset);
+        _pinky.shortSheet = stiletto.shortSheet;
+        _pinky.polishMask = game.images.fromCache(stiletto.polishMaskAsset);
+        _pinky.polishPlate = stiletto.polishPlate;
+        _pinky.shortAlign = Vector2.zero();
+        _pinky.useShortSheet();
+        return;
+      }
+      // No stiletto set for this guest — fall through to her square art
+      // rather than borrowing another guest's hand.
     }
+
+    final art = _kit.artFor(digit);
+    if (art != null) {
+      _pinky.shortImage = game.images.fromCache(art.shortAsset);
+      _pinky.shortSheet = art.shortSheet;
+      _pinky.polishMask = game.images.fromCache(art.polishMaskAsset);
+      _pinky.polishPlate = art.polishPlate;
+      _pinky.shortAlign = Vector2.zero();
+      _pinky.useShortSheet();
+      return;
+    }
+
+    final kitShort = _kit.shortNailAsset;
+    final kitMask = _kit.polishMaskAsset;
+    final kitPlate = _kit.polishPlate;
+    final kitSheet = _kit.shortNailSheet;
+    if (kitShort != null &&
+        kitMask != null &&
+        kitPlate != null &&
+        kitSheet != null) {
+      _pinky.shortImage = game.images.fromCache(kitShort);
+      _pinky.shortSheet = kitSheet;
+      _pinky.polishMask = game.images.fromCache(kitMask);
+      _pinky.polishPlate = kitPlate;
+      _pinky.shortAlign = Vector2.zero();
+      _pinky.useShortSheet();
+      return;
+    }
+
+    // Last resort: the original cartoon pinky, for guests with no art at all.
+    _pinky.shortImage = _shortNailImage;
+    _pinky.shortSheet = SpriteAtlas.shortNail;
+    _pinky.polishMask = _polishMask;
+    _pinky.polishPlate = SpriteAtlas.pinkNailPlate;
+    _pinky.shortAlign = SpriteAtlas.shortNailAlign;
     _pinky.useShortSheet();
   }
 
@@ -961,11 +1453,32 @@ class _WashingHand extends PositionComponent {
   List<Vector2> frameAlign;
   double cleanliness = 0;
   double opacity = 0;
+  /// When true, snap to the nearest frame instead of cross-dissolving. Needed
+  /// for sequences whose source photos aren't on a locked pivot — blending
+  /// two different foot positions doubles-exposes both at once.
+  bool hardCut = false;
   ui.Image? polishMask;
   Map<NailDigit, ui.Image> digitPolishMasks = <NailDigit, ui.Image>{};
   Map<NailDigit, int> polishByDigit = <NailDigit, int>{};
   int polishColor = 0xFFFF6BA8;
   double polishFill = 0;
+
+  /// Nail plate rect for [polishMask], in that mask's own pixel space — the
+  /// finished-hand counterpart of [_LockedFingerCloseup.polishPlate].
+  SpriteRegion? polishPlate;
+
+  /// Per-digit plate rects for [digitPolishMasks], keyed the same way.
+  Map<NailDigit, SpriteRegion> digitPolishPlates = <NailDigit, SpriteRegion>{};
+
+  /// Overrides the computed wrist-fade fraction in [render] when set
+  /// (null keeps the normal computation). The default fade assumes the old
+  /// tall 833×1446 cartoon canvas, where fingertips sit well below the top
+  /// edge; [AssetPaths.finalHandLight]'s real-photo canvas is much
+  /// squatter (769×1024) with nails starting almost at y=0, so the same
+  /// fraction faded out most of the polish on every finger except the
+  /// thumb. The photo's own alpha already feathers its edges, so this
+  /// asset barely needs a synthetic fade at all.
+  double? wristFadeEndOverride;
 
   @override
   void render(ui.Canvas canvas) {
@@ -974,10 +1487,19 @@ class _WashingHand extends PositionComponent {
     }
     final last = frames.length - 1;
     final pos = cleanliness.clamp(0.0, 1.0) * last;
-    final from = pos.floor().clamp(0, last);
-    final to = (from + 1).clamp(0, last);
-    final t = pos - from;
-    final fade = t * t * (3 - 2 * t);
+    final int from;
+    final int to;
+    final double fade;
+    if (hardCut) {
+      from = pos.round().clamp(0, last);
+      to = from;
+      fade = 0;
+    } else {
+      from = pos.floor().clamp(0, last);
+      to = (from + 1).clamp(0, last);
+      final t = pos - from;
+      fade = t * t * (3 - 2 * t);
+    }
     final rect = ui.Rect.fromLTWH(0, 0, size.x, size.y);
     final aligns = frameAlign;
     final fromAlign = aligns[from];
@@ -1011,19 +1533,25 @@ class _WashingHand extends PositionComponent {
     _paintFinishedPolish(canvas, frames[from], fromAlign);
     // Soft wrist falloff so the silhouette doesn't stamp a hard rectangle
     // onto the tabletop. Finished hands need a longer fade than wash frames.
-    final wristEnd = polishFill > 0
-        ? (GameConfig.workspaceHandWristFadeEnd * 1.55).clamp(0.2, 0.42)
-        : GameConfig.workspaceHandWristFadeEnd;
-    canvas.drawRect(
-      rect,
-      ui.Paint()
-        ..blendMode = ui.BlendMode.dstIn
-        ..shader = ui.Gradient.linear(
-          ui.Offset(size.x / 2, 0),
-          ui.Offset(size.x / 2, size.y * wristEnd),
-          const <ui.Color>[ui.Color(0x00FFFFFF), ui.Color(0xFFFFFFFF)],
-        ),
-    );
+    final wristEnd = wristFadeEndOverride ??
+        (polishFill > 0
+            ? (GameConfig.workspaceHandWristFadeEnd * 1.55).clamp(0.2, 0.42)
+            : GameConfig.workspaceHandWristFadeEnd);
+    // A zero-height gradient (wristEnd <= 0, i.e. the fade is disabled for
+    // this asset) has coincident start/end points, which Gradient.linear
+    // rejects — skip the fade draw entirely rather than pass one.
+    if (wristEnd > 0) {
+      canvas.drawRect(
+        rect,
+        ui.Paint()
+          ..blendMode = ui.BlendMode.dstIn
+          ..shader = ui.Gradient.linear(
+            ui.Offset(size.x / 2, 0),
+            ui.Offset(size.x / 2, size.y * wristEnd),
+            const <ui.Color>[ui.Color(0x00FFFFFF), ui.Color(0xFFFFFFFF)],
+          ),
+      );
+    }
     canvas.restore();
   }
 
@@ -1042,7 +1570,7 @@ class _WashingHand extends PositionComponent {
       sprite.srcSize.x,
       sprite.srcSize.y,
     );
-    final coats = <MapEntry<ui.Image, int>>[];
+    final coats = <({ui.Image mask, int color, SpriteRegion? plate})>[];
     if (digitPolishMasks.isNotEmpty && polishByDigit.isNotEmpty) {
       for (final digit in NailDigit.values) {
         final digitMask = digitPolishMasks[digit];
@@ -1050,134 +1578,48 @@ class _WashingHand extends PositionComponent {
         if (digitMask == null || color == null || color == 0) {
           continue;
         }
-        coats.add(MapEntry<ui.Image, int>(digitMask, color));
+        coats.add((
+          mask: digitMask,
+          color: color,
+          plate: digitPolishPlates[digit],
+        ));
       }
     }
     if (coats.isEmpty && polishMask != null) {
-      coats.add(MapEntry<ui.Image, int>(polishMask!, polishColor));
+      coats.add((mask: polishMask!, color: polishColor, plate: polishPlate));
     }
     for (final coat in coats) {
-      _paintLacquerCoat(canvas, local, src, coat.key, coat.value);
+      _paintLacquerCoat(canvas, local, src, coat.plate, coat.mask, coat.color);
     }
     canvas.restore();
   }
 
   /// Glossy lacquer clipped strictly to the nail mask — never paints the hand
-  /// bounding box (that caused the pink/dark square on the wood).
+  /// bounding box (that caused the pink/dark square on the wood). Delegates
+  /// the actual tint/depth/shine painting to [_paintNailLacquerCoat], the
+  /// same routine the live per-digit paint uses, so the finished reveal
+  /// reads as the same polish instead of a separately-tuned pastel copy.
   void _paintLacquerCoat(
     ui.Canvas canvas,
     ui.Rect local,
     ui.Rect src,
+    SpriteRegion? plateRegion,
     ui.Image mask,
     int coatColor,
   ) {
-    final base = ui.Color(coatColor);
     final maskSrc = ui.Rect.fromLTWH(
       src.left,
       src.top,
       src.width,
       src.height,
     );
-    final clip = ui.Paint()
-      ..filterQuality = FilterQuality.high
-      ..blendMode = ui.BlendMode.dstIn;
-    final sample = ui.Paint()..filterQuality = FilterQuality.high;
+    final plate = _mapLacquerPlate(plateRegion, maskSrc, local);
 
     canvas.saveLayer(
       local,
       ui.Paint()..color = ui.Color.fromRGBO(255, 255, 255, polishFill),
     );
-
-    // 1) Solid lacquer body from mask pixels only.
-    canvas.drawImageRect(
-      mask,
-      maskSrc,
-      local,
-      ui.Paint()
-        ..filterQuality = FilterQuality.high
-        ..colorFilter = ui.ColorFilter.mode(base, ui.BlendMode.modulate),
-    );
-
-    // 2) Wet depth: darker at cuticle, lighter at free edge — mask-clipped.
-    canvas.saveLayer(
-      local,
-      ui.Paint()..blendMode = ui.BlendMode.softLight,
-    );
-    canvas.drawRect(
-      local,
-      ui.Paint()
-        ..shader = ui.Gradient.linear(
-          ui.Offset(local.center.dx, local.top),
-          ui.Offset(local.center.dx, local.bottom),
-          <ui.Color>[
-            ui.Color.fromRGBO(0, 0, 0, 0.45),
-            ui.Color.fromRGBO(40, 20, 30, 0.08),
-            ui.Color.fromRGBO(255, 255, 255, 0.35),
-            ui.Color.fromRGBO(255, 240, 250, 0.12),
-          ],
-          const <double>[0.0, 0.38, 0.72, 1.0],
-        ),
-    );
-    canvas.drawImageRect(mask, maskSrc, local, clip);
-    canvas.restore();
-
-    // 3) Diagonal studio specular across the hand; each nail keeps its slice.
-    canvas.saveLayer(
-      local,
-      ui.Paint()..blendMode = ui.BlendMode.plus,
-    );
-    canvas.drawRect(
-      local,
-      ui.Paint()
-        ..shader = ui.Gradient.linear(
-          ui.Offset(local.left, local.top),
-          ui.Offset(local.right, local.bottom),
-          const <ui.Color>[
-            ui.Color(0x00FFFFFF),
-            ui.Color(0x00FFFFFF),
-            ui.Color(0xCCFFFFFF),
-            ui.Color(0x55FFFFFF),
-            ui.Color(0x00FFFFFF),
-            ui.Color(0x00FFFFFF),
-          ],
-          const <double>[0.0, 0.40, 0.47, 0.52, 0.60, 1.0],
-        ),
-    );
-    canvas.drawImageRect(mask, maskSrc, local, clip);
-    canvas.restore();
-
-    // 4) Narrow secondary highlight for gel-polish punch.
-    canvas.saveLayer(
-      local,
-      ui.Paint()..blendMode = ui.BlendMode.screen,
-    );
-    canvas.drawRect(
-      local,
-      ui.Paint()
-        ..shader = ui.Gradient.linear(
-          ui.Offset(local.left + local.width * 0.2, local.top),
-          ui.Offset(local.left + local.width * 0.55, local.bottom),
-          const <ui.Color>[
-            ui.Color(0x00FFFFFF),
-            ui.Color(0x88FFFFFF),
-            ui.Color(0x00FFFFFF),
-          ],
-          const <double>[0.35, 0.5, 0.65],
-        ),
-    );
-    canvas.drawImageRect(mask, maskSrc, local, clip);
-    canvas.restore();
-
-    // 5) Soft rim so polish meets skin without a black sticker edge.
-    canvas.saveLayer(
-      local,
-      ui.Paint()
-        ..blendMode = ui.BlendMode.srcATop
-        ..color = const ui.Color(0x33FFFFFF),
-    );
-    canvas.drawImageRect(mask, maskSrc, local, sample);
-    canvas.restore();
-
+    _paintNailLacquerCoat(canvas, local, plate, mask, maskSrc, coatColor);
     canvas.restore();
   }
 
@@ -1232,6 +1674,13 @@ class _LockedFingerCloseup extends PositionComponent {
   int polishColor = 0xFFFF6BA8;
   double polishFill = 0;
 
+  /// Small clockwise correction (radians) for a polish mask whose tip is
+  /// traced a hair off-angle from the nail art it's meant to clip. Applied
+  /// around [polishMaskPivot] (fraction of dest). Zero for masks that are
+  /// already registered correctly.
+  double polishMaskRotation = 0;
+  ui.Offset polishMaskPivot = const ui.Offset(0.5, 0.5);
+
   CharacterSheet get _activeCleanSheet => !splitSprayWipe
       ? cleanSheet
       : _treatmentPhase == NailTreatmentPhase.spray
@@ -1278,14 +1727,29 @@ class _LockedFingerCloseup extends PositionComponent {
     final sheet = _short ? shortSheet : _activeCleanSheet;
     final image = _short ? shortImage : _activeCleanImage;
     final origin = sheet.framePositions[_frame];
-    final src = ui.Rect.fromLTWH(
-      origin.x,
-      origin.y,
-      sheet.frameSize.x,
-      sheet.frameSize.y,
-    );
     // Pinky close-up slot. [frameAlign] keeps the stump on frame 0.
     final slot = SpriteAtlas.fifthNailClean.frameSize;
+    // `drawImageRect` below stretches whatever frame rect we hand it
+    // straight into the box, aspect mismatch or not — every close-up sheet
+    // in the game (both the 355×879 "fifth nail" convention and the
+    // 464×1398 real-photo convention the other digits use) is tuned to
+    // look right stretched that way, so cropping by aspect here as a
+    // general rule would fight that tuning. The sole known exception is
+    // [SpriteAtlas.thumbCleanDarkWipe] (2103×748 photo strip, much wider
+    // than either convention): stretched into the tall/narrow box it
+    // visibly squashes the finger sideways and elongates it. Crop that one
+    // sheet to the box aspect, centered on the frame, instead of stretching.
+    var srcX = origin.x;
+    var srcY = origin.y;
+    var srcW = sheet.frameSize.x;
+    var srcH = sheet.frameSize.y;
+    if (identical(sheet, SpriteAtlas.thumbCleanDarkWipe)) {
+      final boxAspect = slot.x / slot.y;
+      final wantedW = srcH * boxAspect;
+      srcX += (srcW - wantedW) / 2;
+      srcW = wantedW;
+    }
+    final src = ui.Rect.fromLTWH(srcX, srcY, srcW, srcH);
     final scaleX = size.x / slot.x;
     final scaleY = size.y / slot.y;
     var dest = pinToSlot
@@ -1344,91 +1808,22 @@ class _LockedFingerCloseup extends PositionComponent {
       polishMask.width.toDouble(),
       polishMask.height.toDouble(),
     );
-    final plate = ui.Rect.fromLTWH(
-      dest.left + polishPlate.position.x / polishMask.width * dest.width,
-      dest.top + polishPlate.position.y / polishMask.height * dest.height,
-      polishPlate.size.x / polishMask.width * dest.width,
-      polishPlate.size.y / polishMask.height * dest.height,
-    );
-    final base = ui.Color(polishColor);
-    final maskPaint = ui.Paint()
-      ..filterQuality = FilterQuality.high
-      ..blendMode = ui.BlendMode.dstIn
-      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 0.6);
+    final plate = _mapLacquerPlate(polishPlate, maskSrc, dest);
+
+    final needsRotation = polishMaskRotation != 0;
+    if (needsRotation) {
+      final pivot = ui.Offset(
+        dest.left + polishMaskPivot.dx * dest.width,
+        dest.top + polishMaskPivot.dy * dest.height,
+      );
+      canvas.save();
+      canvas.translate(pivot.dx, pivot.dy);
+      canvas.rotate(polishMaskRotation);
+      canvas.translate(-pivot.dx, -pivot.dy);
+    }
 
     canvas.saveLayer(dest, ui.Paint());
-
-    // Lacquer body: tint the nail plate, keep its natural gloss (like the approval still).
-    canvas.saveLayer(dest, ui.Paint()..blendMode = ui.BlendMode.color);
-    canvas.drawRect(
-      plate.inflate(1),
-      ui.Paint()..color = base.withAlpha(238),
-    );
-    canvas.drawImageRect(
-      polishMask,
-      maskSrc,
-      dest,
-      maskPaint,
-    );
-    canvas.restore();
-
-    // Soft depth: slightly richer at the cuticle, lighter toward the free edge.
-    canvas.saveLayer(dest, ui.Paint());
-    canvas.drawRect(
-      plate,
-      ui.Paint()
-        ..blendMode = ui.BlendMode.softLight
-        ..shader = ui.Gradient.linear(
-          ui.Offset(plate.center.dx, plate.top),
-          ui.Offset(plate.center.dx, plate.bottom),
-          const <ui.Color>[
-            ui.Color(0x33000000),
-            ui.Color(0x00000000),
-            ui.Color(0x44FFFFFF),
-          ],
-          const <double>[0, 0.55, 1],
-        ),
-    );
-    canvas.drawImageRect(
-      polishMask,
-      maskSrc,
-      dest,
-      maskPaint,
-    );
-    canvas.restore();
-
-    // Wet center streak — follows the still's vertical highlight.
-    final shine = ui.Rect.fromCenter(
-      center: ui.Offset(
-        plate.center.dx - plate.width * 0.06,
-        plate.center.dy - plate.height * 0.02,
-      ),
-      width: plate.width * 0.2,
-      height: plate.height * 0.86,
-    );
-    canvas.saveLayer(dest, ui.Paint());
-    canvas.drawRRect(
-      ui.RRect.fromRectAndRadius(shine, ui.Radius.circular(shine.width * 0.5)),
-      ui.Paint()
-        ..shader = ui.Gradient.linear(
-          ui.Offset(shine.center.dx, shine.top),
-          ui.Offset(shine.center.dx, shine.bottom),
-          const <ui.Color>[
-            ui.Color(0x00FFFFFF),
-            ui.Color(0xCCFFFFFF),
-            ui.Color(0x66FFFFFF),
-            ui.Color(0x00FFFFFF),
-          ],
-          const <double>[0, 0.18, 0.55, 1],
-        ),
-    );
-    canvas.drawImageRect(
-      polishMask,
-      maskSrc,
-      dest,
-      maskPaint,
-    );
-    canvas.restore();
+    _paintNailLacquerCoat(canvas, dest, plate, polishMask, maskSrc, polishColor);
 
     if (polishFill < 0.999) {
       final revealed = plate.height * polishFill;
@@ -1445,6 +1840,9 @@ class _LockedFingerCloseup extends PositionComponent {
       );
     }
     canvas.restore();
+    if (needsRotation) {
+      canvas.restore();
+    }
   }
 }
 

@@ -12,6 +12,7 @@ import 'package:nail_glam/controller/nail_glam_game.dart';
 import 'package:nail_glam/model/placeholder_art.dart';
 import 'package:nail_glam/view/arrival_complete_overlay.dart';
 import 'package:nail_glam/view/arrival_controls_overlay.dart';
+import 'package:nail_glam/view/care_target_choice_overlay.dart';
 import 'package:nail_glam/view/customer_thought_bubble_overlay.dart';
 import 'package:nail_glam/view/home_overlay.dart';
 import 'package:nail_glam/view/nail_care_overlay.dart';
@@ -102,6 +103,12 @@ void main() {
                         ),
                 NailCareOverlay.id: (BuildContext context, NailGlamGame game) =>
                     NailCareOverlay(game: game),
+                CareTargetChoiceOverlay.id:
+                    (BuildContext context, NailGlamGame game) =>
+                        CareTargetChoiceOverlay(
+                          onChooseHand: game.chooseHandCare,
+                          onChooseFoot: game.chooseFootCare,
+                        ),
               },
         ),
       ),
@@ -216,6 +223,12 @@ void main() {
                   NailCareOverlay.id:
                       (BuildContext context, NailGlamGame game) =>
                           NailCareOverlay(game: game),
+                  CareTargetChoiceOverlay.id:
+                      (BuildContext context, NailGlamGame game) =>
+                          CareTargetChoiceOverlay(
+                            onChooseHand: game.chooseHandCare,
+                            onChooseFoot: game.chooseFootCare,
+                          ),
                 },
           ),
         ),
