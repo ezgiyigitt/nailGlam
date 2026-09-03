@@ -177,10 +177,14 @@ abstract final class SpriteAtlas {
     Vector2(384, 1024),
   );
 
-  /// Nail bed inside [AssetPaths.thumbStilettoPolishMask].
+  /// Nail bed inside [AssetPaths.thumbStilettoPolishMask], re-measured as that
+  /// mask's own opaque alpha bounding box. The previous rect sat 28px left of
+  /// the mask and was 47px wider, so the flat tint ran out before the nail's
+  /// right edge and the wet/shine gradients were keyed off an axis the nail
+  /// does not sit on.
   static final SpriteRegion thumbStilettoLightPlate = SpriteRegion(
-    Vector2(102, 458),
-    Vector2(228, 452),
+    Vector2(130, 438),
+    Vector2(181, 471),
   );
 
   /// 1536×1024, 4×1 stiletto cutting strip shared by the dark-skin pinky,
@@ -420,6 +424,29 @@ abstract final class SpriteAtlas {
     Vector2(901, 600),
   );
 
+  /// Per-nail plates for the dark stiletto reveal, each measured as that
+  /// nail's own blob in `final_hand_dark_stiletto_mask.png`. The aggregate
+  /// rect above spans all five nails, so it kept the gradient and shine on
+  /// the hand's axis instead of each nail's.
+  static final SpriteRegion finalHandDarkStilettoNailPlatePinky = SpriteRegion(
+    Vector2(271, 667),
+    Vector2(81, 168),
+  );
+  static final SpriteRegion finalHandDarkStilettoNailPlateRing = SpriteRegion(
+    Vector2(456, 827),
+    Vector2(78, 186),
+  );
+  static final SpriteRegion finalHandDarkStilettoNailPlateMiddle = SpriteRegion(
+    Vector2(682, 894),
+    Vector2(80, 183),
+  );
+  static final SpriteRegion finalHandDarkStilettoNailPlatePointer =
+      SpriteRegion(Vector2(909, 834), Vector2(84, 192));
+  static final SpriteRegion finalHandDarkStilettoNailPlateThumb = SpriteRegion(
+    Vector2(1071, 477),
+    Vector2(101, 187),
+  );
+
   /// Fallback plate for the rare case the per-digit reveal masks/colours
   /// aren't populated and the aggregate 5-nail mask is used instead — same
   /// "mask's own bbox" measurement as the per-digit plates above.
@@ -454,26 +481,30 @@ abstract final class SpriteAtlas {
 
   /// Per-toe plates for the [AssetPaths.finalToeLightNailThumb] etc. split —
   /// each measured as that toe's own mask opaque bbox on the shared
-  /// 2172×724 canvas.
+  /// 2172×724 canvas. Re-derived together with the masks themselves, which
+  /// were rebuilt by luminance/saturation-segmenting the actual toenail in
+  /// the last frame of `toe_nail_cutting_light.png`. The previous masks were
+  /// traced by eye and sat wider than the nails, so the polish spilled onto
+  /// the skin — worst on the big toe and the two next to it.
   static final SpriteRegion footNailPolishPlateLightThumb = SpriteRegion(
-    Vector2(1844, 607),
-    Vector2(75, 60),
+    Vector2(1850, 611),
+    Vector2(56, 56),
   );
   static final SpriteRegion footNailPolishPlateLightPointer = SpriteRegion(
-    Vector2(1942, 635),
-    Vector2(44, 40),
+    Vector2(1946, 638),
+    Vector2(36, 38),
   );
   static final SpriteRegion footNailPolishPlateLightMiddle = SpriteRegion(
-    Vector2(1989, 615),
-    Vector2(52, 49),
+    Vector2(2005, 621),
+    Vector2(32, 34),
   );
   static final SpriteRegion footNailPolishPlateLightRing = SpriteRegion(
-    Vector2(2042, 586),
-    Vector2(44, 41),
+    Vector2(2055, 591),
+    Vector2(26, 30),
   );
   static final SpriteRegion footNailPolishPlateLightPinky = SpriteRegion(
-    Vector2(2086, 552),
-    Vector2(37, 37),
+    Vector2(2094, 556),
+    Vector2(24, 29),
   );
 
   static final CharacterSheet fifthNailClean = CharacterSheet(

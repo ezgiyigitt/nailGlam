@@ -77,14 +77,16 @@ class NailGlamGame extends FlameGame with PanDetector {
   void onGameResize(Vector2 size) {
     if (size.x > 0 && size.y > 0) {
       final canvasAspect = size.x / size.y;
-      final designAspect = GameConfig.viewWidth / GameConfig.viewHeight;
 
-      final resolution = canvasAspect <= designAspect
-          ? Vector2(GameConfig.viewWidth, GameConfig.viewWidth / canvasAspect)
-          : Vector2(
-              GameConfig.viewHeight * canvasAspect,
-              GameConfig.viewHeight,
-            );
+      // Height-locked framing. The design height is always exactly the screen
+      // height and the width follows the device aspect, so a taller-than-9:16
+      // phone (iPhone XR and friends) crops a little off the sides instead of
+      // revealing empty world above and below the room, which is what produced
+      // the black bands.
+      final resolution = Vector2(
+        GameConfig.viewHeight * canvasAspect,
+        GameConfig.viewHeight,
+      );
 
       if ((_viewportResolution - resolution).length2 > 1) {
         _viewportResolution = resolution;

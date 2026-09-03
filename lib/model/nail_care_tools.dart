@@ -569,6 +569,39 @@ abstract final class NailCareInventory {
     ),
   ];
 
+  /// Every buyable skin for one tool, in shop order. Slot 0 is the free
+  /// starter; the rest are unlocked with coins in the shop's Tools tab.
+  static List<NailCareInventoryItem> skinsFor(NailCareToolId tool) {
+    switch (tool) {
+      case NailCareToolId.handSoap:
+        return soaps;
+      case NailCareToolId.nailSpray:
+        return sprays;
+      case NailCareToolId.nailBuffer:
+        return buffers;
+      case NailCareToolId.nailClips:
+        return clips;
+      case NailCareToolId.nailPolish:
+        return polishes;
+    }
+  }
+
+  /// Short HUD caption for a tool card.
+  static String toolLabel(NailCareToolId tool) {
+    switch (tool) {
+      case NailCareToolId.handSoap:
+        return 'Soap';
+      case NailCareToolId.nailSpray:
+        return 'Spray';
+      case NailCareToolId.nailBuffer:
+        return 'Wipe';
+      case NailCareToolId.nailClips:
+        return 'Clips';
+      case NailCareToolId.nailPolish:
+        return 'Polish';
+    }
+  }
+
   /// Spray and wipe each get their own HUD box during nail-clean stages —
   /// on the foot as well as the hand.
   static bool splitSprayAndWipe(NailCareStage stage) =>

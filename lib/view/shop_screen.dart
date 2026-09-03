@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'package:nail_glam/controller/game_audio.dart';
 import 'package:nail_glam/controller/player_progress_controller.dart';
+import 'package:nail_glam/model/nail_care_tools.dart';
 import 'package:nail_glam/model/salon_catalog.dart';
 import 'gold_coin.dart';
 
@@ -28,6 +29,15 @@ class ShopScreen extends StatefulWidget {
 class _ShopScreenState extends State<ShopScreen> {
   final PageController _pages = PageController(viewportFraction: 0.86);
   int _index = 0;
+  int _tab = 0;
+
+  /// Tools sold here. Polish keeps its own in-game picker, so it is not listed.
+  static const List<NailCareToolId> _toolTabs = <NailCareToolId>[
+    NailCareToolId.handSoap,
+    NailCareToolId.nailSpray,
+    NailCareToolId.nailBuffer,
+    NailCareToolId.nailClips,
+  ];
 
   @override
   void dispose() {
@@ -74,15 +84,37 @@ class _ShopScreenState extends State<ShopScreen> {
                     ],
                   ),
                 ),
-                const Text(
-                  'Swipe to browse. Locked pieces cost coins.',
-                  style: TextStyle(
+                _TabBar(
+                  index: _tab,
+                  onChanged: (int value) {
+                    GameAudio.instance.tap();
+                    setState(() => _tab = value);
+                  },
+                ),
+                Text(
+                  _tab == 0
+                      ? 'Swipe to browse. Locked pieces cost coins.'
+                      : 'Tap a tool to equip it. It goes straight on your HUD card.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
                     fontFamily: 'Baloo2',
                     fontSize: 14,
                     color: Color(0xFF8A4B63),
                   ),
                 ),
                 const SizedBox(height: 8),
+                if (_tab == 1)
+                  Expanded(
+                    child: ListView(
+                      key: const Key('shop-tools'),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                      children: <Widget>[
+                        for (final NailCareToolId tool in _toolTabs)
+                          _ToolShelf(tool: tool, progressController: progress),
+                      ],
+                    ),
+                  )
+                else ...<Widget>[
                 Expanded(
                   child: PageView.builder(
                     key: const Key('shop-showroom'),
@@ -130,10 +162,209 @@ class _ShopScreenState extends State<ShopScreen> {
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
                   child: _BuyBar(item: item, progressController: progress),
                 ),
+                ],
               ],
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _TabBar extends StatelessWidget {
+  const _TabBar({required this.index, required this.onChanged});
+
+  final int index;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          _pill('Salon', 0),
+          const SizedBox(width: 8),
+          _pill('Tools', 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(String label, int value) {
+    final on = index == value;
+    return GestureDetector(
+      key: Key('shop-tab-${label.toLowerCase()}'),
+      onTap: () => onChanged(value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+        decoration: BoxDecoration(
+          color: on ? const Color(0xFFFF6BA8) : const Color(0x22E84F8F),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Baloo2',
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: on ? Colors.white : const Color(0xFF8A4B63),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One tool's shelf: every skin it has, with buy / equip in a single tap.
+class _ToolShelf extends StatelessWidget {
+  const _ToolShelf({required this.tool, required this.progressController});
+
+  final NailCareToolId tool;
+  final PlayerProgressController progressController;
+
+  @override
+  Widget build(BuildContext context) {
+    final skins = NailCareInventory.skinsFor(tool);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Text(
+              NailCareInventory.toolLabel(tool).toUpperCase(),
+              style: const TextStyle(
+                fontFamily: 'Baloo2',
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF8A4B63),
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 132,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: skins.length,
+              separatorBuilder: (BuildContext _, int __) =>
+                  const SizedBox(width: 10),
+              itemBuilder: (BuildContext context, int i) => _SkinCard(
+                item: skins[i],
+                progressController: progressController,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkinCard extends StatelessWidget {
+  const _SkinCard({required this.item, required this.progressController});
+
+  final NailCareInventoryItem item;
+  final PlayerProgressController progressController;
+
+  @override
+  Widget build(BuildContext context) {
+    final owned = progressController.ownsSkin(item);
+    final equipped =
+        owned && progressController.isToolEquipped(item.toolId, item.id);
+    final canBuy = progressController.canBuySkin(item);
+
+    return GestureDetector(
+      key: Key('shop-skin-${item.id}'),
+      onTap: () {
+        if (owned) {
+          GameAudio.instance.tap();
+          progressController.equipSkin(item);
+          return;
+        }
+        if (progressController.buySkin(item)) {
+          GameAudio.instance.coin();
+        }
+      },
+      child: Container(
+        width: 104,
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF8FC),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: equipped ? const Color(0xFFFF6BA8) : const Color(0xFFF4B6C8),
+            width: equipped ? 3 : 2,
+          ),
+        ),
+        child: Column(
+          children: <Widget>[
+            Expanded(
+              child: Opacity(
+                opacity: owned ? 1 : 0.45,
+                child: Image.asset(
+                  'assets/images/${item.iconPath}',
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              item.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: 'Baloo2',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF5B3742),
+              ),
+            ),
+            const SizedBox(height: 2),
+            if (equipped)
+              const Text(
+                'Equipped',
+                style: TextStyle(
+                  fontFamily: 'Baloo2',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFE84F8F),
+                ),
+              )
+            else if (owned)
+              const Text(
+                'Tap to use',
+                style: TextStyle(
+                  fontFamily: 'Baloo2',
+                  fontSize: 12,
+                  color: Color(0xFF9A6A7A),
+                ),
+              )
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  const GoldCoin(size: 13),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${item.unlockPrice}',
+                    style: TextStyle(
+                      fontFamily: 'Baloo2',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: canBuy
+                          ? const Color(0xFF5B3742)
+                          : const Color(0xFFB993A0),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }

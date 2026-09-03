@@ -445,34 +445,39 @@ class _NailCareHudState extends State<_NailCareHud> {
           Positioned(
             right: 14,
             bottom: 156,
-            child: care.showsSplitToolBoxes
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      _KitDrawer(
-                        game: game,
-                        drawerKey: const Key('nail-care-inventory-drawer-spray'),
-                        label: 'Spray',
-                        preview: care.sprayDrawerPreview,
-                        onTap: () =>
-                            care.toggleInventory(NailCareInventory.sprays),
-                      ),
-                      const SizedBox(width: 8),
-                      _KitDrawer(
-                        game: game,
-                        drawerKey: const Key('nail-care-inventory-drawer-wipe'),
-                        label: 'Wipe',
-                        preview: NailCareInventory.buffers.first,
-                        onTap: () =>
-                            care.toggleInventory(NailCareInventory.buffers),
-                      ),
-                    ],
-                  )
-                : _KitDrawer(
+            child: care.usesPolishPanel
+                ? _KitDrawer(
                     game: game,
                     label: NailCareInventory.kitLabelFor(stage),
                     preview: kit.isEmpty ? null : kit.first,
                     onTap: care.toggleInventory,
+                  )
+                : care.showsSplitToolBoxes
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      _ToolDrawer(
+                        game: game,
+                        drawerKey: const Key('nail-care-inventory-drawer-spray'),
+                        item: care.sprayDrawerPreview,
+                        active: care.canUse(NailCareToolId.nailSpray),
+                      ),
+                      const SizedBox(width: 8),
+                      _ToolDrawer(
+                        game: game,
+                        drawerKey: const Key('nail-care-inventory-drawer-wipe'),
+                        item: care.wipeDrawerPreview,
+                        active: care.canUse(NailCareToolId.nailBuffer),
+                      ),
+                    ],
+                  )
+                : _ToolDrawer(
+                    game: game,
+                    drawerKey: const Key('nail-care-inventory-drawer'),
+                    item: care.activeTool == null
+                        ? null
+                        : care.equippedItemFor(care.activeTool!.id),
+                    active: true,
                   ),
           ),
         if (_previewItem != null)
@@ -766,6 +771,102 @@ class _GuestNameChip extends StatelessWidget {
           fontWeight: FontWeight.w800,
           color: Color(0xFF7A3D5C),
           decoration: TextDecoration.none,
+        ),
+      ),
+    );
+  }
+}
+
+/// The tool card itself. It shows the skin equipped in the shop and is the
+/// drag handle: press it and pull straight onto the hand — no picker in
+/// between. Tapping does nothing on purpose.
+class _ToolDrawer extends StatelessWidget {
+  const _ToolDrawer({
+    required this.game,
+    required this.item,
+    required this.active,
+    this.drawerKey,
+  });
+
+  final NailGlamGame game;
+  final NailCareInventoryItem? item;
+  final bool active;
+  final Key? drawerKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final tool = item;
+    final card = _card(
+      tool == null
+          ? const Icon(Icons.inventory_2_rounded, color: Color(0xFF8A4B63))
+          : FittedBox(
+              child: AtlasToolImage(
+                game: game,
+                toolId: tool.toolId,
+                iconPath: tool.iconPath,
+                width: 46,
+              ),
+            ),
+      tool == null ? '' : NailCareInventory.toolLabel(tool.toolId),
+    );
+
+    if (tool == null) {
+      return KeyedSubtree(key: drawerKey, child: card);
+    }
+
+    return KeyedSubtree(
+      key: drawerKey,
+      child: Draggable<NailCareToolId>(
+        key: Key('nail-care-tool-${tool.toolId.name}'),
+        data: tool.toolId,
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        feedback: Material(
+          color: Colors.transparent,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          child: AtlasToolImage(
+            game: game,
+            toolId: tool.toolId,
+            iconPath: tool.iconPath,
+            width: 84,
+          ),
+        ),
+        childWhenDragging: Opacity(opacity: 0.28, child: card),
+        child: Opacity(opacity: active ? 1 : 0.55, child: card),
+      ),
+    );
+  }
+
+  Widget _card(Widget art, String label) {
+    return Material(
+      color: const Color(0xF2FFF6EE),
+      elevation: 8,
+      shadowColor: const Color(0x55402832),
+      borderRadius: BorderRadius.circular(22),
+      child: SizedBox(
+        width: 86,
+        height: 108,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+          child: Column(
+            children: <Widget>[
+              Text(
+                label.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: NailCareOverlay._uiFont,
+                  fontSize: 13,
+                  height: 1,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF8A4B63),
+                  decoration: TextDecoration.none,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Expanded(child: art),
+            ],
+          ),
         ),
       ),
     );

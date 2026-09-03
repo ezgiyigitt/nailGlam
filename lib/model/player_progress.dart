@@ -12,6 +12,7 @@ class PlayerProgress extends ChangeNotifier {
     required this.coins,
     required this.owned,
     required this.equipped,
+    required this.equippedTools,
     required this.loginStreak,
     required this.lastLoginDay,
     required this.loginClaimedToday,
@@ -21,6 +22,11 @@ class PlayerProgress extends ChangeNotifier {
 
   final Set<String> owned;
   final Map<ShopSlot, String> equipped;
+
+  /// Manicure tool skin the player has equipped, keyed by `NailCareToolId.name`
+  /// so this file stays free of gameplay imports. The nail-care HUD reads it to
+  /// decide which bottle sits on the draggable card.
+  final Map<String, String> equippedTools;
   SharedPreferences? store;
 
   int coins;
@@ -33,6 +39,7 @@ class PlayerProgress extends ChangeNotifier {
   static const String _coinsKey = 'progress.coins';
   static const String _ownedKey = 'progress.owned';
   static const String _equippedKey = 'progress.equipped';
+  static const String _equippedToolsKey = 'progress.equippedTools';
   static const String _streakKey = 'progress.streak';
   static const String _lastDayKey = 'progress.lastDay';
   static const String _loginClaimedKey = 'progress.loginClaimed';
@@ -59,6 +66,7 @@ class PlayerProgress extends ChangeNotifier {
         ShopSlot.chair: SalonCatalog.starterChair.id,
         ShopSlot.table: SalonCatalog.starterTable.id,
       },
+      equippedTools: <String, String>{},
       loginStreak: 0,
       lastLoginDay: '',
       loginClaimedToday: false,
@@ -88,6 +96,13 @@ class PlayerProgress extends ChangeNotifier {
       }
       progress.equipped[slot] = parts[1];
     }
+    for (final entry in prefs.getStringList(_equippedToolsKey) ?? <String>[]) {
+      final parts = entry.split(':');
+      if (parts.length != 2) {
+        continue;
+      }
+      progress.equippedTools[parts[0]] = parts[1];
+    }
     progress.loginStreak = prefs.getInt(_streakKey) ?? 0;
     progress.lastLoginDay = prefs.getString(_lastDayKey) ?? '';
     progress.loginClaimedToday = prefs.getBool(_loginClaimedKey) ?? false;
@@ -104,6 +119,39 @@ class PlayerProgress extends ChangeNotifier {
       equipped[ShopSlot.table] ?? SalonCatalog.starterTable.id;
 
   bool owns(String id) => owned.contains(id);
+
+  /// Equipped skin id for a tool, or null when the player never picked one.
+  String? equippedToolId(String toolKey) => equippedTools[toolKey];
+
+  bool isToolEquipped(String toolKey, String itemId) =>
+      equippedTools[toolKey] == itemId;
+
+  /// Puts an owned tool skin on the manicure HUD card.
+  void equipTool(String toolKey, String itemId) {
+    if (equippedTools[toolKey] == itemId) {
+      return;
+    }
+    equippedTools[toolKey] = itemId;
+    _persist();
+    notifyListeners();
+  }
+
+  /// Buys a manicure tool skin and equips it straight away.
+  bool buyTool({
+    required String toolKey,
+    required String itemId,
+    required int price,
+  }) {
+    if (owns(itemId) || coins < price) {
+      return false;
+    }
+    coins -= price;
+    owned.add(itemId);
+    equippedTools[toolKey] = itemId;
+    _persist();
+    notifyListeners();
+    return true;
+  }
 
   bool get canClaimLogin => !loginClaimedToday;
 
@@ -233,6 +281,12 @@ class PlayerProgress extends ChangeNotifier {
       _equippedKey,
       equipped.entries
           .map((MapEntry<ShopSlot, String> e) => '${e.key.name}:${e.value}')
+          .toList(),
+    );
+    prefs.setStringList(
+      _equippedToolsKey,
+      equippedTools.entries
+          .map((MapEntry<String, String> e) => '${e.key}:${e.value}')
           .toList(),
     );
     prefs.setInt(_streakKey, loginStreak);

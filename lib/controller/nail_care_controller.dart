@@ -226,16 +226,45 @@ class NailCareController extends Component
     return null;
   }
 
-  /// Spray drawer thumbnail: equipped skin, or the free starter.
-  NailCareInventoryItem get sprayDrawerPreview {
-    final selected = selectedItem;
-    if (selected != null &&
-        selected.toolId == NailCareToolId.nailSpray &&
-        ownsKitItem(selected)) {
-      return selected;
+  /// The skin the player equipped in the shop for [tool], falling back to the
+  /// free starter. This is what the HUD card shows and what gets dragged, so
+  /// there is no picker to open mid-manicure any more.
+  NailCareInventoryItem? equippedItemFor(NailCareToolId tool) {
+    final skins = NailCareInventory.skinsFor(tool);
+    if (skins.isEmpty) {
+      return null;
     }
-    return NailCareInventory.spray;
+    final equippedId = progressOf().equippedToolId(tool.name);
+    if (equippedId != null) {
+      for (final item in skins) {
+        if (item.id == equippedId && ownsKitItem(item)) {
+          return item;
+        }
+      }
+    }
+    for (final item in skins) {
+      if (ownsKitItem(item)) {
+        return item;
+      }
+    }
+    return null;
   }
+
+  /// Polish keeps its picker: colours are chosen per nail, not equipped once.
+  bool get usesPolishPanel =>
+      stage == NailCareStage.nailPolishing ||
+      stage == NailCareStage.nailPolishingCompleted ||
+      stage == NailCareStage.footNailPolishing ||
+      stage == NailCareStage.footNailPolishingCompleted;
+
+  /// Spray drawer thumbnail: equipped skin, or the free starter.
+  NailCareInventoryItem get sprayDrawerPreview =>
+      equippedItemFor(NailCareToolId.nailSpray) ?? NailCareInventory.spray;
+
+  /// Wipe drawer thumbnail: equipped skin, or the free starter.
+  NailCareInventoryItem get wipeDrawerPreview =>
+      equippedItemFor(NailCareToolId.nailBuffer) ??
+      NailCareInventory.buffers.first;
 
   bool get showsInventory =>
       !rewardOpen &&
@@ -250,8 +279,13 @@ class NailCareController extends Component
           stage == NailCareStage.footNailCutting ||
           stage == NailCareStage.footNailPolishing);
 
+  /// Only polish still parks a separate chip on screen; every other tool is
+  /// dragged straight off its HUD card.
   bool get showsSelectedTool =>
-      showsInventory && selectedItem != null && ownsKitItem(selectedItem!);
+      showsInventory &&
+      usesPolishPanel &&
+      selectedItem != null &&
+      ownsKitItem(selectedItem!);
 
   bool get canAdvance =>
       !rewardOpen &&
@@ -486,11 +520,18 @@ class NailCareController extends Component
   }
 
   bool canUse(NailCareToolId id) {
-    final selected = selectedItem;
-    if (selected == null || !ownsKitItem(selected) || selected.toolId != id) {
+    if (NailCareCatalog.activeToolFor(stage)?.id != id) {
       return false;
     }
-    return NailCareCatalog.activeToolFor(stage)?.id == id;
+    if (usesPolishPanel) {
+      final selected = selectedItem;
+      return selected != null &&
+          ownsKitItem(selected) &&
+          selected.toolId == id;
+    }
+    // Soap / spray / wipe / clips: whatever is equipped in the shop is what
+    // the card carries, so owning it is the only gate.
+    return equippedItemFor(id) != null;
   }
 
   List<NailCareInventoryItem> get currentKit =>
@@ -500,7 +541,9 @@ class NailCareController extends Component
       item.unlocked || progressOf().owns(item.id);
 
   void toggleInventory([List<NailCareInventoryItem>? kit]) {
-    if (!showsInventory) {
+    // Only the polish stage still has a picker; every other kit is equipped in
+    // the shop and dragged straight from the HUD card.
+    if (!showsInventory || !usesPolishPanel) {
       return;
     }
     final target = kit ?? currentKit;

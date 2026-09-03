@@ -154,6 +154,8 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
       <NailDigit, ui.Image>{};
   late final Map<NailDigit, ui.Image> _lightStilettoFinalDigitMasks =
       <NailDigit, ui.Image>{};
+  late final Map<NailDigit, ui.Image> _darkStilettoFinalDigitMasks =
+      <NailDigit, ui.Image>{};
   late final Map<NailDigit, ui.Image> _lightToeDigitMasks =
       <NailDigit, ui.Image>{};
   late ui.Image _darkCleanImage;
@@ -450,6 +452,19 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
       width: 1448,
       height: 1086,
     );
+    for (final entry in <NailDigit, String>{
+      NailDigit.pinky: AssetPaths.finalHandDarkStilettoNailPinky,
+      NailDigit.ring: AssetPaths.finalHandDarkStilettoNailRing,
+      NailDigit.middle: AssetPaths.finalHandDarkStilettoNailMiddle,
+      NailDigit.pointer: AssetPaths.finalHandDarkStilettoNailPointer,
+      NailDigit.thumb: AssetPaths.finalHandDarkStilettoNailThumb,
+    }.entries) {
+      _darkStilettoFinalDigitMasks[entry.key] = await _loadOptional(
+        entry.value,
+        width: 1448,
+        height: 1086,
+      );
+    }
     await game.images.load(AssetPaths.footNailCutStrip);
     _footNailCutFrames = _spritesFor(
       game.images.fromCache(_kit.footNailCutAsset),
@@ -736,9 +751,21 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
           polishByDigit ?? const <NailDigit, int>{},
         );
         _hand.polishColor = _pinky.polishColor;
+      } else if (maskAsset == AssetPaths.finalHandDarkStilettoMask &&
+          _darkStilettoFinalDigitMasks.isNotEmpty) {
+        // Dark stiletto now carries the same per-digit split, so each nail
+        // keeps its own colour and its own gradient axis instead of sharing
+        // one plate stretched across the whole hand.
+        _hand.digitPolishMasks = Map<NailDigit, ui.Image>.from(
+          _darkStilettoFinalDigitMasks,
+        );
+        _hand.digitPolishPlates = _darkStilettoFinalDigitPlates;
+        _hand.polishByDigit = Map<NailDigit, int>.from(
+          polishByDigit ?? const <NailDigit, int>{},
+        );
+        _hand.polishColor = _pinky.polishColor;
       } else {
-        // Dark stiletto still has only the single unified mask — fall back
-        // to one colour for the whole hand, same as before.
+        // No split available for this art — one colour for the whole hand.
         _hand.digitPolishMasks = <NailDigit, ui.Image>{};
         _hand.digitPolishPlates = <NailDigit, SpriteRegion>{};
         _hand.polishByDigit = <NailDigit, int>{};
@@ -748,11 +775,12 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
             : _pinky.polishColor;
       }
       _hand.polishFill = 1;
-      // The light stiletto art points its fingers *up*, so its nails sit in
-      // the very rows the top wrist-fade eats; its wrist is alpha-feathered
-      // in the asset instead. The dark stiletto art still needs the fade.
-      _hand.wristFadeEndOverride =
-          stilettoAsset == AssetPaths.finalHandStiletto ? 0.0 : null;
+      // The wrist fade is per-canvas, so it comes from the kit rather than the
+      // shared 0.34 fraction: the light stiletto points its fingers *up* and
+      // feathers its own wrist (0), the dark one is cut flat at the top row
+      // and needs only a hairline (0.10). The shared fraction used to eat the
+      // top third of the dark hand.
+      _hand.wristFadeEndOverride = _kit.stilettoFinalHandWristFadeEnd;
       _applyOpacity(_opacity);
       return;
     }
@@ -823,6 +851,15 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
         NailDigit.middle: SpriteAtlas.finalHandStilettoNailPlateMiddle,
         NailDigit.pointer: SpriteAtlas.finalHandStilettoNailPlatePointer,
         NailDigit.thumb: SpriteAtlas.finalHandStilettoNailPlateThumb,
+      };
+
+  static final Map<NailDigit, SpriteRegion> _darkStilettoFinalDigitPlates =
+      <NailDigit, SpriteRegion>{
+        NailDigit.pinky: SpriteAtlas.finalHandDarkStilettoNailPlatePinky,
+        NailDigit.ring: SpriteAtlas.finalHandDarkStilettoNailPlateRing,
+        NailDigit.middle: SpriteAtlas.finalHandDarkStilettoNailPlateMiddle,
+        NailDigit.pointer: SpriteAtlas.finalHandDarkStilettoNailPlatePointer,
+        NailDigit.thumb: SpriteAtlas.finalHandDarkStilettoNailPlateThumb,
       };
 
   void _showWashHand({required double cleanliness}) {
@@ -1752,19 +1789,28 @@ class _LockedFingerCloseup extends PositionComponent {
     final src = ui.Rect.fromLTWH(srcX, srcY, srcW, srcH);
     final scaleX = size.x / slot.x;
     final scaleY = size.y / slot.y;
+    // Both the clean/spray/wipe frames and the cut frames are mapped through
+    // the *source frame's own* size, so a sheet that is not authored on the
+    // 355×879 slot convention keeps its aspect instead of being squeezed into
+    // the slot. The thumb is the digit this matters for: its photo sheets are
+    // 464×1398 (0.332) against the slot's 0.404, so the old `slot`-based
+    // clean branch stretched it ~22% wider than its own cut frames — the
+    // finger appeared to grow a cut-off right edge during spray and then jump
+    // the moment cutting swapped in the short sheet. Same rect for both
+    // branches, so nothing moves between stages.
     var dest = pinToSlot
         ? ui.Rect.fromLTWH(0, 0, size.x, size.y)
         : ui.Rect.fromLTWH(
             _short ? shortAlign.x * scaleX : 0,
             _short ? shortAlign.y * scaleY : 0,
-            (_short ? sheet.frameSize.x : slot.x) * scaleX,
-            (_short ? sheet.frameSize.y : slot.y) * scaleY,
+            srcW * scaleX,
+            srcH * scaleY,
           );
     final align = sheet.frameAlign[_frame];
     dest = dest.shift(
       ui.Offset(
-        align.x * dest.width / sheet.frameSize.x,
-        align.y * dest.height / sheet.frameSize.y,
+        align.x * dest.width / srcW,
+        align.y * dest.height / srcH,
       ),
     );
     final padX =

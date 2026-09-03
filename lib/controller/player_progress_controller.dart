@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:nail_glam/model/nail_care_tools.dart';
 import 'package:nail_glam/model/player_progress.dart';
 import 'package:nail_glam/model/salon_catalog.dart';
 
@@ -62,9 +63,48 @@ class PlayerProgressController extends ChangeNotifier {
   bool canBuy(ShopItem item) =>
       !item.starter && !owns(item.id) && coins >= item.price;
 
+  // --- Manicure tool skins (shop Tools tab) ---
+
+  bool ownsSkin(NailCareInventoryItem item) =>
+      item.unlocked || owns(item.id);
+
+  bool canBuySkin(NailCareInventoryItem item) =>
+      !ownsSkin(item) && coins >= item.unlockPrice;
+
+  bool isToolEquipped(NailCareToolId tool, String itemId) {
+    if (_model.isToolEquipped(tool.name, itemId)) {
+      return true;
+    }
+    // Nothing picked yet: the free starter is what the HUD shows.
+    return _model.equippedToolId(tool.name) == null &&
+        _defaultSkinFor(tool)?.id == itemId;
+  }
+
+  NailCareInventoryItem? _defaultSkinFor(NailCareToolId tool) {
+    for (final item in NailCareInventory.skinsFor(tool)) {
+      if (ownsSkin(item)) {
+        return item;
+      }
+    }
+    return null;
+  }
+
   // --- Actions (views) ---
 
   bool buyShopItem(ShopItem item) => _model.buy(item);
+
+  bool buySkin(NailCareInventoryItem item) => _model.buyTool(
+    toolKey: item.toolId.name,
+    itemId: item.id,
+    price: item.unlockPrice,
+  );
+
+  void equipSkin(NailCareInventoryItem item) {
+    if (!ownsSkin(item)) {
+      return;
+    }
+    _model.equipTool(item.toolId.name, item.id);
+  }
 
   /// Re-equips an already-owned piece (e.g. switching back to the starter
   /// chair/table after buying a premium one).

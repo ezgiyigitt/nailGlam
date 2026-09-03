@@ -66,6 +66,7 @@ class GuestCareKit {
     this.stilettoFinalHandAsset,
     this.stilettoFinalHandSheet,
     this.stilettoFinalHandMaskAsset,
+    this.stilettoFinalHandWristFadeEnd = 0.0,
     this.shortNailAsset,
     this.shortNailSheet,
     this.polishMaskAsset,
@@ -128,6 +129,15 @@ class GuestCareKit {
   final String? stilettoFinalHandAsset;
   final CharacterSheet? stilettoFinalHandSheet;
   final String? stilettoFinalHandMaskAsset;
+
+  /// Fraction of the stiletto reveal sprite's height that the top wrist-fade
+  /// eats. It is per-canvas, not a global constant: the light stiletto photo
+  /// points its fingers *up* and feathers its own wrist, so it needs none,
+  /// while the dark stiletto's wrist is cut flat against the very top row of
+  /// its canvas and needs just enough to stop that edge stamping a hard line
+  /// on the table. The old shared 0.34 fraction faded roughly the top third
+  /// of the dark hand away — the "only half the hand shows" bug.
+  final double stilettoFinalHandWristFadeEnd;
 
   /// Legacy single-digit short/mask (pinky) when [digitArt] is empty.
   final String? shortNailAsset;
@@ -359,6 +369,7 @@ abstract final class GuestCareCatalog {
     stilettoFinalHandAsset: AssetPaths.finalHandDarkStiletto,
     stilettoFinalHandSheet: SpriteAtlas.finalHandDarkStiletto,
     stilettoFinalHandMaskAsset: AssetPaths.finalHandDarkStilettoMask,
+    stilettoFinalHandWristFadeEnd: 0.10,
     shortNailAsset: AssetPaths.pinkyShortDark,
     shortNailSheet: SpriteAtlas.pinkyShortDark,
     polishMaskAsset: AssetPaths.pinkyNailMaskDark,

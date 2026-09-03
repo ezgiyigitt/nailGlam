@@ -205,6 +205,21 @@ abstract final class AssetPaths {
   static const String finalHandDarkStilettoMask =
       'final_hand_dark_stiletto_mask.png';
 
+  /// Per-nail split of [finalHandDarkStilettoMask], same reasoning as the
+  /// light stiletto split: one whole-hand mask meant a single plate drove the
+  /// wet-depth gradient and shine streak for all five nails at once, so the
+  /// polish never sat on any individual nail's own axis.
+  static const String finalHandDarkStilettoNailPinky =
+      'final_hand_dark_stiletto_nail_pinky.png';
+  static const String finalHandDarkStilettoNailRing =
+      'final_hand_dark_stiletto_nail_ring.png';
+  static const String finalHandDarkStilettoNailMiddle =
+      'final_hand_dark_stiletto_nail_middle.png';
+  static const String finalHandDarkStilettoNailPointer =
+      'final_hand_dark_stiletto_nail_pointer.png';
+  static const String finalHandDarkStilettoNailThumb =
+      'final_hand_dark_stiletto_nail_thumb.png';
+
   /// 1536×1024, 4×1 dirty→clean foot wash stages, locked pose (whole foot).
   static const String footCleanLight = 'foot_clean_light.png';
 
@@ -393,6 +408,11 @@ abstract final class AssetPaths {
     finalHandStilettoNailMiddle,
     finalHandStilettoNailPointer,
     finalHandStilettoNailThumb,
+    finalHandDarkStilettoNailPinky,
+    finalHandDarkStilettoNailRing,
+    finalHandDarkStilettoNailMiddle,
+    finalHandDarkStilettoNailPointer,
+    finalHandDarkStilettoNailThumb,
     footCleanLight,
     footNailCleanLight,
     pinkyStilettoNailDark,
