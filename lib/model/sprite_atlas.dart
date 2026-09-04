@@ -395,29 +395,35 @@ abstract final class SpriteAtlas {
   /// reveal, so each nail gets its own gradient/shine rather than one
   /// stretched across the whole hand.
   static final SpriteRegion finalHandStilettoNailPlate = SpriteRegion(
-    Vector2(161, 18),
-    Vector2(785, 818),
+    Vector2(160, 17),
+    Vector2(786, 817),
   );
 
+  /// Round 5: the light stiletto reveal masks sat ~10-13px inside the painted
+  /// nail's real outline, so the art's own pale nail rim stayed unpainted and
+  /// read as a light halo around every finished nail. Each mask was regrown
+  /// out to the nail's actual boundary (dark cuticle groove + skin-chroma
+  /// barrier, convex-hull smoothed) and these plates re-measured as the
+  /// rebuilt mask's own opaque bounding box.
   static final SpriteRegion finalHandStilettoNailPlatePinky = SpriteRegion(
-    Vector2(873, 603),
-    Vector2(69, 226),
+    Vector2(869, 603),
+    Vector2(77, 231),
   );
   static final SpriteRegion finalHandStilettoNailPlateRing = SpriteRegion(
-    Vector2(679, 124),
-    Vector2(63, 209),
+    Vector2(675, 124),
+    Vector2(71, 215),
   );
   static final SpriteRegion finalHandStilettoNailPlateMiddle = SpriteRegion(
-    Vector2(499, 18),
-    Vector2(69, 217),
+    Vector2(493, 17),
+    Vector2(80, 222),
   );
   static final SpriteRegion finalHandStilettoNailPlatePointer = SpriteRegion(
-    Vector2(334, 113),
-    Vector2(64, 215),
+    Vector2(330, 113),
+    Vector2(73, 220),
   );
   static final SpriteRegion finalHandStilettoNailPlateThumb = SpriteRegion(
-    Vector2(161, 348),
-    Vector2(52, 185),
+    Vector2(160, 346),
+    Vector2(58, 192),
   );
   static final SpriteRegion finalHandDarkStilettoNailPlate = SpriteRegion(
     Vector2(271, 477),
