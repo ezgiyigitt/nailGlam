@@ -65,9 +65,12 @@ abstract final class AssetPaths {
   static const String premiumSpray = 'premium_spray.png';
   static const String premiumWipe = 'premium_wipe.png';
 
+  /// Slot 0 of the soap drawer: the starter soap every player owns.
+  static const String toolSoap1 = 'soap.png';
+
   /// Sliced from the delivered `soaps_all.png` sheet (see
   /// tool/slice_soap_bottles.py) — replaces the older tool_soap_*.png art.
-  static const String toolSoap1 = 'soap_bottle_1.png';
+  static const String soapBottle1 = 'soap_bottle_1.png';
   static const String toolSoap2 = 'soap_bottle_2.png';
   static const String toolSoap3 = 'soap_bottle_3.png';
   static const String toolSoap4 = 'soap_bottle_4.png';
