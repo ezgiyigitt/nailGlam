@@ -45,8 +45,11 @@ class CuteHandSimCard extends StatelessWidget {
   static const double _padT = 8;
   static const double _padR = 4;
   static const double _padB = 26;
-  static const double _cardW = 132;
-  static const double _cardH = 156;
+  // Kept deliberately small: in the hand-washing stage the guest's own hand
+  // hangs low into the frame, and this tracker sits under it. Every pixel of
+  // card height is a pixel closer to covering her fingers.
+  static const double _cardW = 118;
+  static const double _cardH = 140;
 
   static Rect _paintBox() => Rect.fromLTRB(
         _padL,

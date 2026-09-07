@@ -56,6 +56,29 @@ class _NailCareHudState extends State<_NailCareHud> {
   /// 40 tall (20 icon + 2×10 padding); the rest is the gap above [_NextButton].
   static const double _adBonusSlotHeight = 50;
 
+  /// The stage-label line. Tall enough for the ad chip that shares it (40), so
+  /// the line — and everything stacked above it — keeps its height whether the
+  /// offer is showing or not.
+  static const double _labelRowHeight = 40;
+
+  /// How tall the bottom HUD column is, measured from the bottom edge of its
+  /// own [SafeArea]. Fixed by construction: every optional piece in it either
+  /// has a reserved height or shares a line with something permanent.
+  static const double _bottomHudHeight =
+      12 + // padding under the NEXT button
+      50 + // NEXT button
+      12 +
+      22 + // gap + progress bar
+      6 +
+      _labelRowHeight; // gap + stage label (and the ad chip beside it)
+
+  /// Where anything floating above the bottom HUD has to start. Derived rather
+  /// than hard-coded: the HUD sits inside a [SafeArea] and a bare [Positioned]
+  /// does not, so on a phone with a home-indicator inset a magic number leaves
+  /// the tool cards sitting on the progress bar.
+  double _bottomHudClearance(BuildContext context) =>
+      MediaQuery.of(context).padding.bottom + _bottomHudHeight + 8;
+
   final GlobalKey _walletKey = GlobalKey();
 
   int _flightId = 0;
@@ -333,7 +356,7 @@ class _NailCareHudState extends State<_NailCareHud> {
         if (care.showsSelectedTool && selected != null)
           Positioned(
             right: 14,
-            bottom: 280,
+            bottom: _bottomHudClearance(context) + 124,
             child: _SelectedToolChip(game: game, item: selected),
           ),
         Positioned(
@@ -366,18 +389,35 @@ class _NailCareHudState extends State<_NailCareHud> {
                     const SizedBox(height: 10),
                   ],
                   if (care.showsProgressBar) ...<Widget>[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        care.progressLabel,
-                        style: const TextStyle(
-                          fontFamily: NailCareOverlay._displayFont,
-                          fontSize: 18,
-                          height: 1,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF8A4B63),
-                          decoration: TextDecoration.none,
-                        ),
+                    // The stage label and the ad chip share one fixed-height
+                    // line. The chip appears the instant a stage completes, so
+                    // a line of its own would both grow this bottom-anchored
+                    // column and push the hand card up into the guest's hand —
+                    // and the space beside a one-word label was empty anyway.
+                    SizedBox(
+                      height: _labelRowHeight,
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              care.progressLabel,
+                              style: const TextStyle(
+                                fontFamily: NailCareOverlay._displayFont,
+                                fontSize: 18,
+                                height: 1,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF8A4B63),
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                          ),
+                          if (care.showsAdBonusOffer || care.adBonusPending)
+                            _AdBonusChip(
+                              bonus: care.adBonusCoins,
+                              busy: care.adBonusPending,
+                              onPressed: care.watchAdForBonus,
+                            ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -388,23 +428,22 @@ class _NailCareHudState extends State<_NailCareHud> {
                     _FinishedPolishRow(colors: care.polishByDigit),
                     const SizedBox(height: 12),
                   ],
-                  // A reserved slot, not a conditional row: this column is
-                  // anchored to the bottom and grows upward, so a chip that
-                  // pops in the moment a stage completes would shove the hand
-                  // card up over the nail. Keeping the height constant means
-                  // nothing above it ever moves.
-                  SizedBox(
-                    height: _adBonusSlotHeight,
-                    child: care.showsAdBonusOffer || care.adBonusPending
-                        ? Center(
-                            child: _AdBonusChip(
-                              bonus: care.adBonusCoins,
-                              busy: care.adBonusPending,
-                              onPressed: care.watchAdForBonus,
-                            ),
-                          )
-                        : null,
-                  ),
+                  // Fallback slot for the stages that have no progress bar to
+                  // hang the chip beside. Still a reserved height, so nothing
+                  // above it moves when the offer arrives.
+                  if (!care.showsProgressBar)
+                    SizedBox(
+                      height: _adBonusSlotHeight,
+                      child: care.showsAdBonusOffer || care.adBonusPending
+                          ? Center(
+                              child: _AdBonusChip(
+                                bonus: care.adBonusCoins,
+                                busy: care.adBonusPending,
+                                onPressed: care.watchAdForBonus,
+                              ),
+                            )
+                          : null,
+                    ),
                   _NextButton(
                     enabled: care.canAdvance,
                     label: stage == NailCareStage.handReveal ||
@@ -478,7 +517,7 @@ class _NailCareHudState extends State<_NailCareHud> {
         if (care.showsInventory)
           Positioned(
             right: 14,
-            bottom: 156,
+            bottom: _bottomHudClearance(context),
             child: care.usesPolishPanel
                 ? _KitDrawer(
                     game: game,
