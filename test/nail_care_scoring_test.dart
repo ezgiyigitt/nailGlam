@@ -181,6 +181,41 @@ void main() {
     });
   });
 
+  group('patience bar', () {
+    testWidgets('the fill is actually drawn, and shrinks as patience drains', (
+      WidgetTester tester,
+    ) async {
+      final game = await loadGame(tester);
+      game.debugOpenNailCare();
+      await tester.pump();
+
+      final bar = find.byKey(const Key('nail-care-patience'));
+      expect(bar, findsOneWidget);
+
+      // The fill is the FractionallySizedBox inside the bar. It shipped once
+      // with no heightFactor, which left it zero-tall — present in the tree,
+      // correct width, and completely invisible. Size is the assertion.
+      final fill = find.descendant(
+        of: bar,
+        matching: find.byType(FractionallySizedBox),
+      );
+      expect(fill, findsOneWidget);
+
+      final fullSize = tester.getSize(fill);
+      expect(fullSize.height, greaterThan(0));
+      expect(fullSize.width, greaterThan(0));
+
+      game.nailCare.patience = 0.25;
+      await tester.pump();
+      // Let the fill's tween settle on the new value.
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final drainedSize = tester.getSize(fill);
+      expect(drainedSize.height, fullSize.height);
+      expect(drainedSize.width, lessThan(fullSize.width));
+    });
+  });
+
   group('combo', () {
     test('multiplier steps at the configured tiers', () {
       // Pure lookup, so it needs no game: tier boundaries are the part worth

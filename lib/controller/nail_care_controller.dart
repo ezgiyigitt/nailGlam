@@ -1673,6 +1673,17 @@ class NailCareController extends Component
     coinBurstAmount = paid;
     coinBurstGeneration += 1;
     confettiGeneration += 1;
+    // Per-stage half of the calibration readout, so the real pace can be read
+    // off a couple of stages instead of only at the end of a whole visit.
+    assert(() {
+      debugPrint(
+        '[patience] stage paid $paid (base $amount ×$comboMultiplier) at '
+        '${_visitElapsed.toStringAsFixed(1)}s — bar '
+        '${(patience * 100).round()}% of ${_patienceBudget.toStringAsFixed(0)}s, '
+        'combo $combo',
+      );
+      return true;
+    }());
     GameAudio.instance.stopTool();
     GameAudio.instance.success();
     GameAudio.instance.coin();

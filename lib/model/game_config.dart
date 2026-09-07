@@ -267,12 +267,17 @@ abstract final class GameConfig {
   /// Fixed allowance every visit gets regardless of length, covering the
   /// parts that do not scale with stage count: reading the first cue,
   /// settling in, the opening wash.
-  static const double nailCarePatienceBaseSeconds = 20;
+  static const double nailCarePatienceBaseSeconds = 15;
 
-  /// Allowance added per paid stage in the flow. A stage costs roughly five
-  /// seconds played briskly, so this leaves a comfortable margin: a confident
-  /// run should finish with a bit over half the bar left.
-  static const double nailCarePatiencePerStageSeconds = 10;
+  /// Allowance added per paid stage in the flow.
+  ///
+  /// Tuned against a real run rather than the hold durations: measured from a
+  /// screenshot mid-manicure, four paid stages had taken about 79 seconds,
+  /// which is far slower than the ~5s per stage the timings alone suggest.
+  /// Eight seconds a stage leaves a brisk player comfortably in profit while
+  /// still letting the bar actually empty on a slow one — which at ten it
+  /// never did.
+  static const double nailCarePatiencePerStageSeconds = 8;
 
   /// Tip paid at a full patience bar, scaled linearly down to nothing as the
   /// bar empties. Sits between one and two stage rewards so a brisk visit is

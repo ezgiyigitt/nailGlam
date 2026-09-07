@@ -56,13 +56,14 @@ class _NailCareHudState extends State<_NailCareHud> {
   /// 40 tall (20 icon + 2×10 padding); the rest is the gap above [_NextButton].
   static const double _adBonusSlotHeight = 50;
 
-  /// The guest block at the top of the HUD: 92 avatar + 6 + the ~26 name chip
-  /// + 6 + the 7 patience bar, rounded up.
+  /// The guest block at the top of the HUD: the 92 avatar + 6 + the ~27 name
+  /// chip + 6 + the 10 patience bar, with a few pixels of slack so a font
+  /// that measures a touch taller cannot overflow the column.
   ///
   /// The stage cue below is positioned off this rather than off a magic
   /// number. Growing the block to fit the patience bar is exactly what slid
   /// the cue underneath it once already.
-  static const double _guestBlockHeight = 140;
+  static const double _guestBlockHeight = 148;
 
   /// The stage-label line. Tall enough for the ad chip that shares it (40), so
   /// the line — and everything stacked above it — keeps its height whether the
@@ -1637,7 +1638,10 @@ class _PatienceBar extends StatelessWidget {
   final double patience;
 
   static const double _width = 96;
-  static const double _height = 7;
+
+  /// Tall enough to actually read as a bar against the guest's hand. At 7 the
+  /// fill was a hairline even once it was drawn at all.
+  static const double _height = 10;
 
   /// Thresholds match the mood bands in `_patienceMoodPenalty`, so the bar
   /// changing colour and the guest's face dropping are the same event twice
@@ -1654,36 +1658,40 @@ class _PatienceBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: _width,
       height: _height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: const Color(0x33FFFFFF),
-          borderRadius: BorderRadius.circular(_height / 2),
-          border: Border.all(color: const Color(0x22000000)),
-        ),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          // The controller only notifies every ~0.004 of the bar, so the
-          // tween is what turns those steps back into a smooth creep.
-          child: TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: patience, end: patience.clamp(0.0, 1.0)),
-            duration: const Duration(milliseconds: 320),
-            curve: Curves.easeOut,
-            builder: (BuildContext context, double value, Widget? child) {
-              return FractionallySizedBox(
-                widthFactor: value.clamp(0.0, 1.0),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: _fillColor,
-                    borderRadius: BorderRadius.circular(_height / 2),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
+      // A dark groove rather than a pale one: this sits on the guest's hand,
+      // and a white-on-skin track was invisible even when full.
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: const Color(0x3D000000),
+        borderRadius: BorderRadius.circular(_height / 2),
+        border: Border.all(color: const Color(0x59FFFFFF), width: 1),
+      ),
+      // The controller only notifies every ~0.004 of the bar, so the tween is
+      // what turns those steps back into a smooth creep.
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: patience, end: patience.clamp(0.0, 1.0)),
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOut,
+        builder: (BuildContext context, double value, Widget? child) {
+          // heightFactor is the whole trick: with only a widthFactor the
+          // fill's height constraints stay loose, and a childless DecoratedBox
+          // then takes the smallest height it is allowed — zero — so the bar
+          // read as permanently empty however full it actually was.
+          return FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: value.clamp(0.0, 1.0),
+            heightFactor: 1,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: _fillColor,
+                borderRadius: BorderRadius.circular(_height / 2),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
