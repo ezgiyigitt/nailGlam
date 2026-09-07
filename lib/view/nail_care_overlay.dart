@@ -486,6 +486,18 @@ class _NailCareHudState extends State<_NailCareHud> {
                     _FinishedPolishRow(colors: care.polishByDigit),
                     const SizedBox(height: 12),
                   ],
+                  // The tip lands on both reveals — the pedicure never showed
+                  // a finished-polish row, but it is paid a tip just the same.
+                  if (stage == NailCareStage.handReveal ||
+                      stage == NailCareStage.footReveal) ...<Widget>[
+                    _TipCard(
+                      key: const Key('nail-care-tip'),
+                      tip: care.tipPaid,
+                      inTime: care.stagesInTime,
+                      total: care.stagesPaid,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   // Fallback slot for the stages that have no progress bar to
                   // hang the chip beside. Still a reserved height, so nothing
                   // above it moves when the offer arrives.
@@ -1701,6 +1713,113 @@ class _PatienceBar extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// The guest's tip, shown on the reveal where it is actually paid.
+///
+/// The tip used to arrive as coins alone, which made the whole per-operation
+/// bar pointless: the player was being scored all visit and never told the
+/// result. So the card names the number *and* the reason for it — how many
+/// operations beat their bar — because that is the sentence that teaches the
+/// mechanic.
+class _TipCard extends StatelessWidget {
+  const _TipCard({
+    required this.tip,
+    required this.inTime,
+    required this.total,
+    super.key,
+  });
+
+  final int tip;
+
+  /// Operations finished before their bar ran out, out of [total] paid.
+  final int inTime;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final earned = tip > 0;
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutBack,
+      builder: (BuildContext context, double t, Widget? child) {
+        return Transform.scale(
+          scale: 0.86 + 0.14 * t,
+          child: Opacity(opacity: t.clamp(0.0, 1.0), child: child),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xF2FFF6EE),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: Color(0x22000000),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  earned ? 'TIP' : 'NO TIP',
+                  style: TextStyle(
+                    fontFamily: NailCareOverlay._displayFont,
+                    fontSize: 16,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                    color: earned
+                        ? const Color(0xFF8A4B63)
+                        : const Color(0xFFB993A0),
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+                if (earned) ...<Widget>[
+                  const SizedBox(width: 10),
+                  const GoldCoin(size: 22),
+                  const SizedBox(width: 6),
+                  Text(
+                    '+$tip',
+                    style: const TextStyle(
+                      fontFamily: NailCareOverlay._displayFont,
+                      fontSize: 26,
+                      height: 1,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF8A4B63),
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 5),
+            Text(
+              total == 0
+                  ? 'No steps scored this visit'
+                  : '$inTime of $total steps finished in time',
+              style: const TextStyle(
+                fontFamily: NailCareOverlay._uiFont,
+                fontSize: 12,
+                height: 1.2,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF9A7080),
+                decoration: TextDecoration.none,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

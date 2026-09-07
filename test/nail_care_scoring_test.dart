@@ -172,6 +172,48 @@ void main() {
     });
   });
 
+  group('tip card', () {
+    testWidgets('the reveal names the tip and why it was that much', (
+      WidgetTester tester,
+    ) async {
+      final game = await loadGame(tester);
+      game.debugOpenNailCare();
+
+      // Nothing to show mid-manicure: the tip is not settled yet.
+      await tester.pump();
+      expect(find.byKey(const Key('nail-care-tip')), findsNothing);
+
+      game.nailCare.stagesPaid = 8;
+      game.nailCare.stagesInTime = 6;
+      game.nailCare.beginHandReveal();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byKey(const Key('nail-care-tip')), findsOneWidget);
+      expect(find.text('TIP'), findsOneWidget);
+      expect(find.text('+${game.nailCare.tipPaid}'), findsOneWidget);
+      // The reason matters as much as the number — it is what tells the
+      // player the bars were being scored at all.
+      expect(find.text('6 of 8 steps finished in time'), findsOneWidget);
+    });
+
+    testWidgets('a visit that beat nothing says so instead of showing +0', (
+      WidgetTester tester,
+    ) async {
+      final game = await loadGame(tester);
+      game.debugOpenNailCare();
+
+      game.nailCare.stagesPaid = 5;
+      game.nailCare.stagesInTime = 0;
+      game.nailCare.beginHandReveal();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('NO TIP'), findsOneWidget);
+      expect(find.text('+0'), findsNothing);
+    });
+  });
+
   group('patience bar', () {
     testWidgets('the fill is actually drawn, and shrinks as patience drains', (
       WidgetTester tester,
