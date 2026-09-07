@@ -177,14 +177,15 @@ abstract final class SpriteAtlas {
     Vector2(384, 1024),
   );
 
-  /// Nail bed inside [AssetPaths.thumbStilettoPolishMask], re-measured as that
-  /// mask's own opaque alpha bounding box. The previous rect sat 28px left of
-  /// the mask and was 47px wider, so the flat tint ran out before the nail's
-  /// right edge and the wet/shine gradients were keyed off an axis the nail
-  /// does not sit on.
+  /// Nail bed inside [AssetPaths.thumbStilettoPolishMask], the mask's own
+  /// opaque alpha bounding box. The mask itself was re-registered to frame 3
+  /// of `thumb_nail_stiletto_light.png` (the cell shown during
+  /// [NailCareStage.nailPolishing]) by tracing the nail's real left/right
+  /// edges per row, so the lacquer now reaches the sidewalls and the tip
+  /// instead of leaving a bare rim.
   static final SpriteRegion thumbStilettoLightPlate = SpriteRegion(
-    Vector2(130, 438),
-    Vector2(181, 471),
+    Vector2(131, 438),
+    Vector2(182, 471),
   );
 
   /// 1536×1024, 4×1 stiletto cutting strip shared by the dark-skin pinky,
@@ -264,14 +265,15 @@ abstract final class SpriteAtlas {
     Vector2(464, 1398),
   );
 
-  /// Nail bed inside [AssetPaths.thumbNailMaskLight], measured as the mask's
-  /// own opaque alpha bounding box (100,557)-(283,884) after the mask was
-  /// re-derived from scratch by colour-segmenting `thumb_short_light.png`
-  /// frame 3 (the fully-shortened state shown during
-  /// [NailCareStage.nailPolishing]) rather than smoothing the old mask.
+  /// Nail bed inside [AssetPaths.thumbNailMaskLight], the mask's own opaque
+  /// alpha bounding box (96,557)-(287,884). The mask was re-registered to
+  /// frame 3 of `thumb_short_light.png` (the fully-shortened cell shown
+  /// during [NailCareStage.nailPolishing]) by tracing the nail's real
+  /// left/right edges per row: the old trace ran ~4px inside the nail's
+  /// right sidewall, so a bare strip of nail showed beside the lacquer.
   static final SpriteRegion thumbNailPlateLight = SpriteRegion(
-    Vector2(100, 557),
-    Vector2(183, 327),
+    Vector2(96, 557),
+    Vector2(191, 327),
   );
 
   /// 769×1024 finished hand for Lila / Ezgi — the hand half of the

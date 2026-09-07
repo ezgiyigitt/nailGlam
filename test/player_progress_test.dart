@@ -58,6 +58,30 @@ void main() {
     expect(progress.canClaimLogin, isTrue);
   });
 
+  test('the debug day-skipper walks the streak up, one tap per day', () {
+    final progress = PlayerProgress.memory();
+    progress.debugRollTo(DateTime(2026, 8, 23));
+    expect(progress.todayLoginDayNumber, 1);
+    expect(progress.todayLoginReward, 100);
+
+    // Each hop lands on the day after the stored one, which is the only thing
+    // the streak counts — so the ladder climbs instead of resetting to day 1.
+    progress.claimDailyLogin();
+    progress.debugAdvanceOneDay();
+    expect(progress.todayLoginDayNumber, 2);
+    expect(progress.todayLoginReward, 150);
+    expect(progress.canClaimLogin, isTrue);
+
+    progress.claimDailyLogin();
+    progress.debugAdvanceOneDay();
+    expect(progress.todayLoginDayNumber, 3);
+    expect(progress.todayLoginReward, 200);
+
+    // Unclaimed days still count as visits: the streak tracks logins.
+    progress.debugAdvanceOneDay();
+    expect(progress.todayLoginDayNumber, 4);
+  });
+
   test('a sofa stays locked until the player can pay', () {
     final progress = PlayerProgress.memory()..addCoins(200);
     expect(progress.buy(SalonCatalog.blushSofa), isFalse);

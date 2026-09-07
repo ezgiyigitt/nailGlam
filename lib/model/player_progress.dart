@@ -270,6 +270,19 @@ class PlayerProgress extends ChangeNotifier {
   @visibleForTesting
   void debugRollTo(DateTime day) => _rollDay(day);
 
+  /// Pretends the player came back the very next day, so a seven-day streak
+  /// can be walked through in seven taps instead of seven days.
+  ///
+  /// Rolling to `lastLoginDay + 1` is what makes the streak *advance*: the
+  /// streak only grows when the previous login was literally yesterday, so
+  /// jumping to `DateTime.now()` on a later date would reset it to day 1 —
+  /// which is exactly the behaviour this helper exists to demonstrate past.
+  /// Debug builds only; nothing in the game calls it in release.
+  void debugAdvanceOneDay() {
+    final DateTime from = DateTime.tryParse(lastLoginDay) ?? DateTime.now();
+    _rollDay(from.add(const Duration(days: 1)));
+  }
+
   void _persist() {
     final prefs = store;
     if (prefs == null) {

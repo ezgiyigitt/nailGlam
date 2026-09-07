@@ -2,6 +2,7 @@ import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:nail_glam/controller/ads_service.dart';
 import 'package:nail_glam/controller/game_audio.dart';
 import 'package:nail_glam/view/components/nail_workspace.dart';
 import 'package:nail_glam/model/game_config.dart';
@@ -54,6 +55,15 @@ class NailCareController extends Component
   int pendingCoins = 0;
   bool rewardOpen = false;
   bool adBonusApplied = false;
+
+  /// Coins the last stage reward paid out. While this is non-zero the HUD may
+  /// offer "watch an ad to double it"; [_clearAdBonusOffer] takes the offer
+  /// away the moment the player moves on to the next stage.
+  int adBonusOfferAmount = 0;
+
+  /// True while a rewarded ad is on screen, so the chip can show a spinner and
+  /// a second tap cannot start a second ad.
+  bool adBonusPending = false;
   bool stageRewardClaimed = false;
   int confettiGeneration = 0;
   int coinBurstGeneration = 0;
@@ -648,13 +658,55 @@ class NailCareController extends Component
     notifyListeners();
   }
 
-  void watchAd() {
-    if (!rewardOpen || adBonusApplied) {
+  /// Whether the HUD should offer "watch an ad, double this reward".
+  ///
+  /// Gated on the ad actually being loaded so the chip never appears for a
+  /// tap that would fail, and on the offer not having been taken already.
+  bool get showsAdBonusOffer =>
+      adBonusOfferAmount > 0 &&
+      !adBonusApplied &&
+      !adBonusPending &&
+      AdsService.instance.isRewardedReady(AdPlacement.stageBonus);
+
+  /// Extra coins the offer is worth, on top of the reward already paid.
+  int get adBonusCoins =>
+      adBonusOfferAmount * (GameConfig.nailCareAdMultiplier - 1);
+
+  /// Plays the rewarded ad and, only if the network says the reward was
+  /// earned, pays the difference between the base reward and the multiplied
+  /// one. A dismissed or failed ad simply leaves the base reward alone.
+  Future<void> watchAdForBonus() async {
+    if (!showsAdBonusOffer) {
       return;
     }
-    pendingCoins *= GameConfig.nailCareAdMultiplier;
-    adBonusApplied = true;
+    final int bonus = adBonusCoins;
+    adBonusPending = true;
     notifyListeners();
+    bool earned = false;
+    try {
+      earned = await AdsService.instance.showRewarded(AdPlacement.stageBonus);
+    } finally {
+      adBonusPending = false;
+    }
+    if (!earned || bonus <= 0) {
+      notifyListeners();
+      return;
+    }
+    adBonusApplied = true;
+    adBonusOfferAmount = 0;
+    coins += bonus;
+    coinBurstAmount = bonus;
+    coinBurstGeneration += 1;
+    GameAudio.instance.coin();
+    notifyListeners();
+  }
+
+  /// Takes the doubling offer off the HUD. Called wherever a stage ends or the
+  /// flow resets, so an offer can never carry over into the next stage.
+  void _clearAdBonusOffer() {
+    adBonusApplied = false;
+    adBonusOfferAmount = 0;
+    adBonusPending = false;
   }
 
   void collectReward() {
@@ -665,7 +717,7 @@ class NailCareController extends Component
     pendingCoins = 0;
     rewardOpen = false;
     GameAudio.instance.coin();
-    adBonusApplied = false;
+    _clearAdBonusOffer();
     stageRewardClaimed = true;
     notifyListeners();
   }
@@ -686,7 +738,7 @@ class NailCareController extends Component
     selectedItemId = null;
     pendingCoins = 0;
     rewardOpen = false;
-    adBonusApplied = false;
+    _clearAdBonusOffer();
     stageRewardClaimed = false;
     _washStarted = false;
     polishByDigit.clear();
@@ -712,7 +764,7 @@ class NailCareController extends Component
     selectedItemId = null;
     pendingCoins = 0;
     rewardOpen = false;
-    adBonusApplied = false;
+    _clearAdBonusOffer();
     stageRewardClaimed = false;
     _washStarted = false;
     polishByDigit.clear();
@@ -736,7 +788,7 @@ class NailCareController extends Component
     selectedItemId = null;
     pendingCoins = 0;
     rewardOpen = false;
-    adBonusApplied = false;
+    _clearAdBonusOffer();
     stageRewardClaimed = false;
     _washStarted = false;
     polishByDigit.clear();
@@ -928,7 +980,7 @@ class NailCareController extends Component
     selectedItemId = null;
     pendingCoins = 0;
     rewardOpen = false;
-    adBonusApplied = false;
+    _clearAdBonusOffer();
     stageRewardClaimed = false;
     workspace.hideSprayMist();
     workspace.showFootNailCutFrame(0);
@@ -970,7 +1022,7 @@ class NailCareController extends Component
     selectedItemId = null;
     pendingCoins = 0;
     rewardOpen = false;
-    adBonusApplied = false;
+    _clearAdBonusOffer();
     stageRewardClaimed = false;
     workspace.hideSprayMist();
     workspace.showFootPolish(color: _activePolishColor, fill: 0);
@@ -1060,7 +1112,7 @@ class NailCareController extends Component
     selectedItemId = null;
     pendingCoins = 0;
     rewardOpen = false;
-    adBonusApplied = false;
+    _clearAdBonusOffer();
     stageRewardClaimed = false;
     workspace.hideSprayMist();
     workspace.beginSprayTreatment(digit);
@@ -1081,7 +1133,7 @@ class NailCareController extends Component
     selectedItemId = null;
     pendingCoins = 0;
     rewardOpen = false;
-    adBonusApplied = false;
+    _clearAdBonusOffer();
     stageRewardClaimed = false;
     workspace.hideSprayMist();
     if (_nailShapeLockedIn) {
@@ -1125,7 +1177,7 @@ class NailCareController extends Component
     selectedItemId = null;
     pendingCoins = 0;
     rewardOpen = false;
-    adBonusApplied = false;
+    _clearAdBonusOffer();
     stageRewardClaimed = false;
     workspace.hideSprayMist();
     workspace.showShortNail(frame: _shortSheet.frameCount - 1);
@@ -1371,7 +1423,8 @@ class NailCareController extends Component
     coins += amount;
     pendingCoins = 0;
     rewardOpen = false;
-    adBonusApplied = false;
+    _clearAdBonusOffer();
+    adBonusOfferAmount = amount;
     stageRewardClaimed = true;
     coinBurstAmount = amount;
     coinBurstGeneration += 1;

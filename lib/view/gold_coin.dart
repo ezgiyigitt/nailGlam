@@ -63,15 +63,20 @@ class _GoldCoinPainter extends CustomPainter {
 }
 
 /// Wallet pill used on home, shop, and the manicure HUD.
+///
+/// With [onTap] set the pill becomes a button into the coins sheet; without
+/// it (the shop, where the player is already spending) it stays a read-out.
 class GoldBalanceChip extends StatelessWidget {
   const GoldBalanceChip({
     required this.coins,
     this.bump = 0,
+    this.onTap,
     super.key,
   });
 
   final int coins;
   final int bump;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +88,12 @@ class GoldBalanceChip extends StatelessWidget {
       builder: (BuildContext context, double scale, Widget? child) {
         return Transform.scale(scale: scale, child: child);
       },
-      child: Container(
+      child: _chip(),
+    );
+  }
+
+  Widget _chip() {
+    final Widget pill = Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: const Color(0xF2FFF6EE),
@@ -107,6 +117,21 @@ class GoldBalanceChip extends StatelessWidget {
               ),
             ),
           ],
+        ),
+    );
+    if (onTap == null) {
+      return pill;
+    }
+    return Semantics(
+      button: true,
+      label: 'Coins: $coins',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const Key('gold-balance-chip'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: pill,
         ),
       ),
     );

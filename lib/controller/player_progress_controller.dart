@@ -112,6 +112,14 @@ class PlayerProgressController extends ChangeNotifier {
 
   int claimDailyLogin() => _model.claimDailyLogin();
 
+  /// Current login streak, for the debug day-skipper's readout.
+  int get loginStreak => _model.loginStreak;
+
+  /// Debug-only: jump to tomorrow so the daily-login streak can be stepped
+  /// through by hand. Guard call sites with [kDebugMode]; there is no UI for
+  /// this in a release build.
+  void debugAdvanceOneDay() => _model.debugAdvanceOneDay();
+
   // --- Actions (gameplay controller) ---
 
   void rewardFinishedCustomer(int coins) {

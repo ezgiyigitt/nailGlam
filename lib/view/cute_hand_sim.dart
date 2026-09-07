@@ -3,15 +3,19 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'package:nail_glam/model/asset_paths.dart';
+import 'package:nail_glam/model/guest_care_kit.dart';
 import 'package:nail_glam/model/nail_care_tools.dart';
 
-/// Shared manicure HUD hand — one art set for every guest.
+/// Manicure HUD hand, drawn in the seated guest's own skin tone.
 ///
 /// Base dorsal hand plus per-digit lacquer masks that tint as work progresses
-/// and lock to polish color when painted. Counter shows done/total.
+/// and lock to polish color when painted. Counter shows done/total. Every
+/// piece of art — the still, the masks, the canvas aspect and the nail
+/// positions — comes from [art], so a guest is never tracked on somebody
+/// else's hand.
 class CuteHandSimCard extends StatelessWidget {
   const CuteHandSimCard({
+    required this.art,
     required this.done,
     required this.total,
     required this.snapshots,
@@ -19,6 +23,9 @@ class CuteHandSimCard extends StatelessWidget {
     this.onDigitTap,
     super.key,
   });
+
+  /// Hand art for the guest being served — see [GuestCareKit.hudHand].
+  final GuestHudHandArt art;
 
   final int done;
   final int total;
@@ -34,23 +41,6 @@ class CuteHandSimCard extends StatelessWidget {
     NailDigit.thumb,
   ];
 
-  static const Map<NailDigit, String> _maskAssets = <NailDigit, String>{
-    NailDigit.pinky: AssetPaths.finalHandLightNailPinky,
-    NailDigit.ring: AssetPaths.finalHandLightNailRing,
-    NailDigit.middle: AssetPaths.finalHandLightNailMiddle,
-    NailDigit.pointer: AssetPaths.finalHandLightNailPointer,
-    NailDigit.thumb: AssetPaths.finalHandLightNailThumb,
-  };
-
-  /// Approximate nail centers in hand image space (for tap targets only).
-  static const Map<NailDigit, Offset> _hitCenters = <NailDigit, Offset>{
-    NailDigit.pinky: Offset(0.062, 0.801),
-    NailDigit.ring: Offset(0.254, 0.914),
-    NailDigit.middle: Offset(0.498, 0.956),
-    NailDigit.pointer: Offset(0.759, 0.920),
-    NailDigit.thumb: Offset(0.939, 0.707),
-  };
-
   static const double _padL = 4;
   static const double _padT = 8;
   static const double _padR = 4;
@@ -65,8 +55,8 @@ class CuteHandSimCard extends StatelessWidget {
         _cardH - _padB,
       );
 
-  static Rect _handDestInPaint(Size paint) {
-    const imageAspect = 833 / 1446;
+  Rect _handDestInPaint(Size paint) {
+    final imageAspect = art.aspect;
     final boxAspect = paint.width / math.max(paint.height, 1e-6);
     late final double drawW;
     late final double drawH;
@@ -87,12 +77,12 @@ class CuteHandSimCard extends StatelessWidget {
 
   /// Test helper: destination rect for [BoxFit.contain] + bottomCenter.
   @visibleForTesting
-  static Rect handDestForTest(Size paint) => _handDestInPaint(paint);
+  Rect handDestForTest(Size paint) => _handDestInPaint(paint);
 
-  static Rect _digitHit(NailDigit digit) {
+  Rect _digitHit(NailDigit digit) {
     final paint = _paintBox();
     final dest = _handDestInPaint(paint.size);
-    final center = _hitCenters[digit]!;
+    final center = art.nailCenters[digit] ?? const Offset(0.5, 0.5);
     final cx = paint.left + dest.left + center.dx * dest.width;
     final cy = paint.top + dest.top + center.dy * dest.height;
     return Rect.fromCenter(center: Offset(cx, cy), width: 34, height: 40);
@@ -173,14 +163,15 @@ class CuteHandSimCard extends StatelessWidget {
                     fit: StackFit.expand,
                     children: <Widget>[
                       Image.asset(
-                        'assets/images/${AssetPaths.finalHandLight}',
+                        'assets/images/${art.handAsset}',
                         fit: BoxFit.contain,
                         alignment: Alignment.bottomCenter,
                         filterQuality: FilterQuality.medium,
                       ),
                       for (final NailDigit digit in _order)
+                        if (art.nailMasks[digit] != null)
                         _DigitLacquerLayer(
-                          asset: _maskAssets[digit]!,
+                          asset: art.nailMasks[digit]!,
                           tint: _tintFor(
                             snapshots[digit] ?? const DigitSimSnapshot(),
                           ),

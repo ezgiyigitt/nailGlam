@@ -6,6 +6,7 @@ import 'package:nail_glam/model/nail_care_tools.dart';
 import 'package:nail_glam/controller/nail_glam_game.dart';
 import 'package:nail_glam/view/cute_hand_sim.dart';
 import 'atlas_tool_image.dart';
+import 'coins_sheet.dart';
 import 'confetti_burst.dart';
 import 'customer_emotion_avatar.dart';
 import 'flying_coins.dart';
@@ -50,6 +51,11 @@ class _NailCareHud extends StatefulWidget {
 }
 
 class _NailCareHudState extends State<_NailCareHud> {
+  /// Height held open for the "watch an ad" chip whether or not it is showing,
+  /// so the bottom column never changes height mid-stage. The chip itself is
+  /// 40 tall (20 icon + 2×10 padding); the rest is the gap above [_NextButton].
+  static const double _adBonusSlotHeight = 50;
+
   final GlobalKey _walletKey = GlobalKey();
 
   int _flightId = 0;
@@ -299,6 +305,14 @@ class _NailCareHudState extends State<_NailCareHud> {
                           key: _walletKey,
                           coins: _flying ? _shownCoins : care.coins,
                           bump: _walletBump,
+                          // No shop shortcut mid-manicure: the sheet is here to
+                          // explain where coins come from, not to send the
+                          // player shopping in the middle of a customer.
+                          onTap: () => showCoinsSheet(
+                            context: context,
+                            wallet: care.progressOf(),
+                            sessionCoins: care.coins,
+                          ),
                         ),
                       ),
                     ],
@@ -337,6 +351,9 @@ class _NailCareHudState extends State<_NailCareHud> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: CuteHandSimCard(
+                        // Progress is tracked on the seated guest's own hand,
+                        // not one shared light-skinned still.
+                        art: care.careKit.hudHand,
                         done: care.nailsDone,
                         total: care.nailsTotal,
                         snapshots: <NailDigit, DigitSimSnapshot>{
@@ -371,6 +388,23 @@ class _NailCareHudState extends State<_NailCareHud> {
                     _FinishedPolishRow(colors: care.polishByDigit),
                     const SizedBox(height: 12),
                   ],
+                  // A reserved slot, not a conditional row: this column is
+                  // anchored to the bottom and grows upward, so a chip that
+                  // pops in the moment a stage completes would shove the hand
+                  // card up over the nail. Keeping the height constant means
+                  // nothing above it ever moves.
+                  SizedBox(
+                    height: _adBonusSlotHeight,
+                    child: care.showsAdBonusOffer || care.adBonusPending
+                        ? Center(
+                            child: _AdBonusChip(
+                              bonus: care.adBonusCoins,
+                              busy: care.adBonusPending,
+                              onPressed: care.watchAdForBonus,
+                            ),
+                          )
+                        : null,
+                  ),
                   _NextButton(
                     enabled: care.canAdvance,
                     label: stage == NailCareStage.handReveal ||
@@ -453,8 +487,13 @@ class _NailCareHudState extends State<_NailCareHud> {
                     onTap: care.toggleInventory,
                   )
                 : care.showsSplitToolBoxes
-                ? Row(
+                // Stacked, not side by side: two 86-wide cards in a row reach
+                // ~180px in from the right edge, which on a narrow phone lands
+                // on top of the zoomed nail. One column keeps the drawers in
+                // the same right-hand lane every other stage uses.
+                ? Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: <Widget>[
                       _ToolDrawer(
                         game: game,
@@ -462,7 +501,7 @@ class _NailCareHudState extends State<_NailCareHud> {
                         item: care.sprayDrawerPreview,
                         active: care.canUse(NailCareToolId.nailSpray),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(height: 8),
                       _ToolDrawer(
                         game: game,
                         drawerKey: const Key('nail-care-inventory-drawer-wipe'),
@@ -1572,6 +1611,87 @@ class _FinishedPolishRow extends StatelessWidget {
         ),
         const SizedBox.shrink(),
       ],
+    );
+  }
+}
+
+/// "Watch an ad, double this reward" offered right after a stage's coin
+/// burst, sitting just above NEXT so it reads as an optional extra rather
+/// than something standing between the player and the next stage.
+///
+/// The chip only exists while `NailCareController.showsAdBonusOffer` is true —
+/// i.e. a reward was just paid, the offer has not been taken, and the ad is
+/// actually loaded — so it can never be tapped into a dead end.
+class _AdBonusChip extends StatelessWidget {
+  const _AdBonusChip({
+    required this.bonus,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  /// Extra coins the player gets for watching, on top of what was just paid.
+  final int bonus;
+
+  /// True while the ad is on screen: the chip greys out and shows a spinner
+  /// so a second tap cannot start a second ad.
+  final bool busy;
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: busy ? 0.6 : 1,
+      child: Material(
+        color: const Color(0xFFFFC24D),
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          key: const Key('nail-care-ad-bonus'),
+          onTap: busy ? null : onPressed,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                if (busy)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Color(0xFF7A4A12),
+                      ),
+                    ),
+                  )
+                else
+                  const Icon(
+                    Icons.play_circle_fill_rounded,
+                    size: 20,
+                    color: Color(0xFF7A4A12),
+                  ),
+                const SizedBox(width: 8),
+                Text(
+                  busy ? 'Playing ad...' : 'Watch for +$bonus',
+                  style: const TextStyle(
+                    fontFamily: NailCareOverlay._uiFont,
+                    fontSize: 15,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF7A4A12),
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+                if (!busy) ...<Widget>[
+                  const SizedBox(width: 6),
+                  const GoldCoin(size: 15),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

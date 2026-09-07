@@ -1,3 +1,5 @@
+import 'dart:ui' show Offset;
+
 import 'package:flame/components.dart';
 
 import 'package:nail_glam/model/asset_paths.dart';
@@ -41,6 +43,78 @@ class GuestNailShapeArt {
 }
 
 /// Per-guest wash / nail-clean / reveal art.
+/// Art for the manicure-progress hand on the gameplay HUD
+/// (`CuteHandSimCard`, bottom-left).
+///
+/// The card used to hardcode the light hand for every guest, so a dark-skinned
+/// guest's progress was tracked on somebody else's hand. Each tone brings its
+/// own still, its own per-nail masks and — because the two hands are posed
+/// differently — its own nail positions.
+class GuestHudHandArt {
+  const GuestHudHandArt({
+    required this.handAsset,
+    required this.nailMasks,
+    required this.aspect,
+    required this.nailCenters,
+  });
+
+  /// Whole-hand still. Must be cropped to the hand itself: the card lays it
+  /// out with `BoxFit.contain`, so padding inside the canvas shrinks the hand.
+  final String handAsset;
+
+  /// One mask per digit, on the same canvas as [handAsset] so the layers line
+  /// up when both are laid out by `BoxFit.contain`.
+  final Map<NailDigit, String> nailMasks;
+
+  /// `width / height` of that canvas, used to place the tap targets over the
+  /// laid-out image.
+  final double aspect;
+
+  /// Nail centres as a fraction of the art, measured from each mask's own
+  /// opaque centroid — not eyeballed.
+  final Map<NailDigit, Offset> nailCenters;
+
+  /// Lila / Ezgi: 769x1024, fingers up, thumb on the left.
+  static const GuestHudHandArt light = GuestHudHandArt(
+    handAsset: AssetPaths.finalHandLight,
+    aspect: 769 / 1024,
+    nailMasks: <NailDigit, String>{
+      NailDigit.pinky: AssetPaths.finalHandLightNailPinky,
+      NailDigit.ring: AssetPaths.finalHandLightNailRing,
+      NailDigit.middle: AssetPaths.finalHandLightNailMiddle,
+      NailDigit.pointer: AssetPaths.finalHandLightNailPointer,
+      NailDigit.thumb: AssetPaths.finalHandLightNailThumb,
+    },
+    nailCenters: <NailDigit, Offset>{
+      NailDigit.pinky: Offset(0.953, 0.285),
+      NailDigit.ring: Offset(0.740, 0.123),
+      NailDigit.middle: Offset(0.588, 0.059),
+      NailDigit.pointer: Offset(0.408, 0.119),
+      NailDigit.thumb: Offset(0.153, 0.509),
+    },
+  );
+
+  /// Zeynep: 868x1018 crop of the dark reveal art, fingers down, thumb right.
+  static const GuestHudHandArt dark = GuestHudHandArt(
+    handAsset: AssetPaths.finalHandDarkHud,
+    aspect: 868 / 1018,
+    nailMasks: <NailDigit, String>{
+      NailDigit.pinky: AssetPaths.finalHandDarkHudNailPinky,
+      NailDigit.ring: AssetPaths.finalHandDarkHudNailRing,
+      NailDigit.middle: AssetPaths.finalHandDarkHudNailMiddle,
+      NailDigit.pointer: AssetPaths.finalHandDarkHudNailPointer,
+      NailDigit.thumb: AssetPaths.finalHandDarkHudNailThumb,
+    },
+    nailCenters: <NailDigit, Offset>{
+      NailDigit.pinky: Offset(0.051, 0.711),
+      NailDigit.ring: Offset(0.265, 0.878),
+      NailDigit.middle: Offset(0.521, 0.927),
+      NailDigit.pointer: Offset(0.770, 0.875),
+      NailDigit.thumb: Offset(0.941, 0.551),
+    },
+  );
+}
+
 class GuestCareKit {
   GuestCareKit({
     required this.washAsset,
@@ -50,6 +124,7 @@ class GuestCareKit {
     required this.nailCleanSheet,
     required this.finalHandAsset,
     required this.finalHandSheet,
+    this.hudHand = GuestHudHandArt.light,
     this.footWashAsset = AssetPaths.footCleanLight,
     CharacterSheet? footWashSheet,
     this.footNailCleanAsset = AssetPaths.footNailCleanLight,
@@ -82,6 +157,10 @@ class GuestCareKit {
   final CharacterSheet nailCleanSheet;
   final String finalHandAsset;
   final CharacterSheet finalHandSheet;
+
+  /// Hand drawn on the HUD progress card. Defaults to the light art, so a kit
+  /// only names this when its guest is a different tone.
+  final GuestHudHandArt hudHand;
 
   /// Whole-foot wash/toenail art matching this guest's skin tone.
   final String footWashAsset;
@@ -282,6 +361,7 @@ abstract final class GuestCareCatalog {
     nailCleanSheet: SpriteAtlas.pinkyCleanDark,
     finalHandAsset: AssetPaths.finalHandDark,
     finalHandSheet: SpriteAtlas.finalHandDark,
+    hudHand: GuestHudHandArt.dark,
     footWashAsset: AssetPaths.footCleanDark,
     footWashSheet: SpriteAtlas.footWashDark,
     footNailCleanAsset: AssetPaths.footNailCleanDark,

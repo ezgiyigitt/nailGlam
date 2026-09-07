@@ -4,10 +4,12 @@ import 'package:nail_glam/controller/game_audio.dart';
 import 'package:nail_glam/controller/home_controller.dart';
 import 'package:nail_glam/model/asset_paths.dart';
 import 'package:nail_glam/model/customer_roster.dart';
+import 'coins_sheet.dart';
 import 'cropped_asset.dart';
 import 'daily_reward_sheet.dart';
 import 'gold_coin.dart';
 import 'how_to_play_screen.dart';
+import 'polish_reveal_logo.dart';
 import 'settings_sheet.dart';
 import 'shop_screen.dart';
 
@@ -142,6 +144,11 @@ class _HomeOverlayState extends State<HomeOverlay> {
                                   padding: const EdgeInsets.only(right: 10),
                                   child: GoldBalanceChip(
                                     coins: _controller.progress.coins,
+                                    onTap: () => showCoinsSheet(
+                                      context: context,
+                                      wallet: _controller.progress.wallet,
+                                      onOpenShop: _openShop,
+                                    ),
                                   ),
                                 );
                               },
@@ -204,11 +211,12 @@ class _HomeOverlayState extends State<HomeOverlay> {
                                   maxWidth: maxWidth,
                                   maxHeight: maxHeight,
                                 ),
-                                child: Image.asset(
-                                  'assets/images/${AssetPaths.menuLogo}',
-                                  fit: BoxFit.contain,
-                                  filterQuality: FilterQuality.high,
-                                  gaplessPlayback: true,
+                                // The title lacquers itself on when the menu
+                                // opens, and again on tap — see
+                                // [PolishRevealLogo].
+                                child: PolishRevealLogo(
+                                  asset:
+                                      'assets/images/${AssetPaths.menuLogo}',
                                 ),
                               ),
                             );
@@ -254,7 +262,12 @@ class _HomeOverlayState extends State<HomeOverlay> {
                 ),
               ),
               Center(
-                child: SettingsDialog(onDone: _closeSettings),
+                child: SettingsDialog(
+                  onDone: _closeSettings,
+                  // Only reaches the UI in debug builds — see the day-skipper
+                  // row inside the dialog.
+                  progress: _controller.progress,
+                ),
               ),
             ],
             if (_guestsOpen) ...<Widget>[

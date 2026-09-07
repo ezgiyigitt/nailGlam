@@ -108,6 +108,25 @@ abstract final class AssetPaths {
   static const String finalHandDarkNailMiddle = 'final_hand_dark_nail_middle.png';
   static const String finalHandDarkNailPointer = 'final_hand_dark_nail_pointer.png';
   static const String finalHandDarkNailThumb = 'final_hand_dark_nail_thumb.png';
+
+  /// HUD copies of the dark reveal hand and its per-nail masks, cropped to
+  /// [SpriteAtlas.finalHandDark]'s own window (344,0)-(1212,1018).
+  ///
+  /// The gameplay art lives on a 1536x1024 canvas with the hand windowed in
+  /// the middle; the HUD card draws whole images with BoxFit.contain, so
+  /// handing it the uncropped canvas would shrink the hand and float it off
+  /// centre. Cropping once here keeps the card free of per-guest layout maths.
+  static const String finalHandDarkHud = 'final_hand_dark_hud.png';
+  static const String finalHandDarkHudNailPinky =
+      'final_hand_dark_hud_nail_pinky.png';
+  static const String finalHandDarkHudNailRing =
+      'final_hand_dark_hud_nail_ring.png';
+  static const String finalHandDarkHudNailMiddle =
+      'final_hand_dark_hud_nail_middle.png';
+  static const String finalHandDarkHudNailPointer =
+      'final_hand_dark_hud_nail_pointer.png';
+  static const String finalHandDarkHudNailThumb =
+      'final_hand_dark_hud_nail_thumb.png';
   static const String pinkyCleanDark = 'pinky_clean_dark.png';
   static const String pinkyShortDark = 'pinky_short_dark.png';
   static const String pinkyNailMaskDark = 'pinky_nail_mask_dark.png';

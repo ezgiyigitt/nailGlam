@@ -64,6 +64,12 @@ void _paintNailLacquerCoat(
   canvas.restore();
 
   // 3) Wet center streak — follows the still's vertical highlight.
+  //
+  // The gradient only varies *vertically*, so the band's left and right edges
+  // are hard: at hand scale that passes for a gloss line, but on a toenail —
+  // a few dozen pixels wide — it reads as a white stripe painted down the
+  // middle of the nail. A blur sized from the band's own width gives it a
+  // horizontal falloff too, so one streak works at both scales.
   final shine = ui.Rect.fromCenter(
     center: ui.Offset(
       plate.center.dx - plate.width * 0.06,
@@ -76,13 +82,17 @@ void _paintNailLacquerCoat(
   canvas.drawRRect(
     ui.RRect.fromRectAndRadius(shine, ui.Radius.circular(shine.width * 0.5)),
     ui.Paint()
+      ..maskFilter = ui.MaskFilter.blur(
+        ui.BlurStyle.normal,
+        math.max(1.2, shine.width * 0.42),
+      )
       ..shader = ui.Gradient.linear(
         ui.Offset(shine.center.dx, shine.top),
         ui.Offset(shine.center.dx, shine.bottom),
         const <ui.Color>[
           ui.Color(0x00FFFFFF),
-          ui.Color(0xCCFFFFFF),
-          ui.Color(0x66FFFFFF),
+          ui.Color(0x9EFFFFFF),
+          ui.Color(0x4DFFFFFF),
           ui.Color(0x00FFFFFF),
         ],
         const <double>[0, 0.18, 0.55, 1],
