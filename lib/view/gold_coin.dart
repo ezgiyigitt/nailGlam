@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'motion.dart';
+
 /// Solid gold disc — no dollar, cent, or currency glyph.
 class GoldCoin extends StatelessWidget {
   const GoldCoin({this.size = 22, super.key});
@@ -105,15 +107,25 @@ class GoldBalanceChip extends StatelessWidget {
           children: <Widget>[
             const GoldCoin(size: 20),
             const SizedBox(width: 6),
-            Text(
-              '$coins',
-              style: const TextStyle(
-                fontFamily: 'Baloo2',
-                fontSize: 20,
-                height: 1,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF6B524C),
-                decoration: TextDecoration.none,
+            // Clipped to its own line height so the outgoing number slides out
+            // of view instead of spilling over the pill's border.
+            ClipRect(
+              child: SizedBox(
+                height: 22,
+                child: RollingCount(
+                  value: coins,
+                  style: const TextStyle(
+                    fontFamily: 'Baloo2',
+                    fontSize: 20,
+                    height: 1.1,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF6B524C),
+                    decoration: TextDecoration.none,
+                    // Tabular figures: without them every digit change nudges
+                    // the pill's width and the whole row jitters.
+                    fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+                  ),
+                ),
               ),
             ),
           ],
@@ -122,17 +134,17 @@ class GoldBalanceChip extends StatelessWidget {
     if (onTap == null) {
       return pill;
     }
-    return Semantics(
-      button: true,
-      label: 'Coins: $coins',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          key: const Key('gold-balance-chip'),
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: pill,
-        ),
+    // A spring press rather than an ink ripple. A ripple is a Material idea —
+    // it spreads from where you touched and outlives the tap; this pill should
+    // just take the push and come back, which is what makes it feel like an
+    // object instead of a link.
+    return KeyedSubtree(
+      key: const Key('gold-balance-chip'),
+      child: PressableScale(
+        semanticLabel: 'Coins: $coins',
+        pressedScale: 0.93,
+        onPressed: onTap,
+        child: pill,
       ),
     );
   }

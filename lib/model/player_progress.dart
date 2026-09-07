@@ -256,6 +256,15 @@ class PlayerProgress extends ChangeNotifier {
     if (lastLoginDay == today) {
       return;
     }
+    // lastLoginDay reads as being ahead of today. On a real device that only
+    // happens if the clock was wound backward — the debug day-skipper that
+    // used to cause this on purpose is gone. Either way, treating "ahead" the
+    // same as "a day was missed" was the actual reset bug: it zeroed a streak
+    // that had not, in fact, lapsed. Leave everything untouched until the
+    // calendar catches back up.
+    if (lastLoginDay.isNotEmpty && lastLoginDay.compareTo(today) > 0) {
+      return;
+    }
     final yesterday = _dayKey(now.subtract(const Duration(days: 1)));
     loginStreak = lastLoginDay == yesterday
         ? (loginStreak + 1).clamp(1, SalonCatalog.dailyLoginCoins.length)
@@ -265,7 +274,19 @@ class PlayerProgress extends ChangeNotifier {
     customersFinishedToday = 0;
     playBonusClaimedToday = false;
     _persist();
+    // Was silent even on a real rollover, which was harmless when this only
+    // ran once before the first frame. It stops being harmless once
+    // [refreshDay] can run mid-session: without this, the daily-gift button
+    // and streak ladder would go stale until something unrelated happened to
+    // rebuild them.
+    notifyListeners();
   }
+
+  /// Re-checks the calendar. Call this whenever the app comes back to the
+  /// foreground, not just on cold start — a session left open across
+  /// midnight, or resumed the next day from the app switcher, never restarts
+  /// [load] and so never used to see the new day until the next full launch.
+  void refreshDay() => _rollDay(DateTime.now());
 
   @visibleForTesting
   void debugRollTo(DateTime day) => _rollDay(day);
@@ -307,6 +328,16 @@ class PlayerProgress extends ChangeNotifier {
     prefs.setBool(_loginClaimedKey, loginClaimedToday);
     prefs.setInt(_customersKey, customersFinishedToday);
     prefs.setBool(_playBonusKey, playBonusClaimedToday);
+    // Debug-only trace, stripped from release by the assert. Pairs with the
+    // '[progress] loaded' line in main.dart: if writes are printed here but
+    // the next launch loads zeros, the store is not keeping them.
+    assert(() {
+      debugPrint(
+        '[progress] persisted  coins=$coins  streak=$loginStreak  '
+        'lastDay="$lastLoginDay"',
+      );
+      return true;
+    }());
   }
 
   static String _dayKey(DateTime day) =>

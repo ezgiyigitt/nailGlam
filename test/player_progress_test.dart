@@ -99,4 +99,37 @@ void main() {
     expect(progress.todayLoginReward, 150);
     expect(progress.canClaimLogin, isTrue);
   });
+
+  test('a clock that reads earlier than the stored day leaves the streak '
+      'alone', () {
+    // Regression test for the reset bug: lastLoginDay ends up ahead of
+    // "today" whenever the device clock reads earlier than the last recorded
+    // visit — a backward clock change, a timezone crossing, or (previously)
+    // the debug day-skipper landing on a future date. _rollDay used to treat
+    // that exactly like a missed day and zero the streak, so a real player's
+    // progress could vanish for a reason that had nothing to do with them
+    // actually skipping a day.
+    final progress = PlayerProgress.memory();
+    progress.debugRollTo(DateTime(2026, 8, 25));
+    progress.claimDailyLogin();
+    expect(progress.todayLoginDayNumber, 1);
+
+    // The clock now reads a day *before* the stored lastLoginDay.
+    progress.debugRollTo(DateTime(2026, 8, 24));
+
+    expect(progress.todayLoginDayNumber, 1);
+    expect(progress.canClaimLogin, isFalse);
+  });
+
+  test('refreshDay is a no-op on the same calendar day', () {
+    final progress = PlayerProgress.memory();
+    progress.debugRollTo(DateTime(2026, 8, 23));
+    progress.claimDailyLogin();
+    final streakBefore = progress.loginStreak;
+
+    progress.debugRollTo(DateTime(2026, 8, 23));
+
+    expect(progress.loginStreak, streakBefore);
+    expect(progress.canClaimLogin, isFalse);
+  });
 }

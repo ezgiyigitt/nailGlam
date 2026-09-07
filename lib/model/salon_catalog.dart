@@ -14,6 +14,7 @@ class ShopItem {
     this.pillowOffsetX = 0,
     this.chairHeight,
     this.chairBottomY,
+    this.deskDropY = 0,
     this.apronColor = 0xFFC45420,
   });
 
@@ -39,6 +40,15 @@ class ShopItem {
   /// Optional chair scale overrides (shop chairs with taller backs).
   final double? chairHeight;
   final double? chairBottomY;
+
+  /// How far this desk's art must slide down for its desktop line to land where
+  /// the seated guest is drawn.
+  ///
+  /// Every desk is painted into the same rectangle, so a desk whose slab sits
+  /// higher inside its own image starts covering the customer higher up — she
+  /// reads as sunk into the table. The starter desk defines zero, since
+  /// [GameConfig.tableWoodY] was measured on its art.
+  final double deskDropY;
 
   /// Apron fill behind desk edges when the camera pans past the art.
   final int apronColor;
@@ -108,6 +118,9 @@ abstract final class SalonCatalog {
     surfaceAsset: 'table_surface_marble.png',
     // Marble desktop sits higher in the art; keep the armrest on the slab.
     pillowCenterY: 1384,
+    // …and drop the desk by the same amount, or that higher slab swallows the
+    // guest's waist. 1438 (default armrest) − 1384 = 54.
+    deskDropY: 54,
     apronColor: 0xFFF2B8C8,
   );
   static const ShopItem premiumTable = ShopItem(
@@ -118,6 +131,8 @@ abstract final class SalonCatalog {
     previewAsset: 'shop_table_premium.png',
     surfaceAsset: 'table_surface_premium.png',
     pillowCenterY: 1419,
+    // 1438 − 1419 = 19.
+    deskDropY: 19,
     apronColor: 0xFFE8A0B4,
   );
 

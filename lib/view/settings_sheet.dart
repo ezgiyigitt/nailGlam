@@ -1,36 +1,24 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import 'package:nail_glam/controller/game_audio.dart';
-import 'package:nail_glam/controller/player_progress_controller.dart';
 
 /// Music and sound as two independent toggles.
-///
-/// [progress] is only used by the debug day-skipper, so it stays optional:
-/// call sites that have no wallet to hand still work.
-Future<void> showSettingsSheet({
-  required BuildContext context,
-  PlayerProgressController? progress,
-}) {
+Future<void> showSettingsSheet({required BuildContext context}) {
   GameAudio.instance.tap();
   return showDialog<void>(
     context: context,
     barrierDismissible: true,
     barrierColor: const Color(0xCC3A1C28),
     builder: (BuildContext context) => SettingsDialog(
-      progress: progress,
       onDone: () => Navigator.of(context).pop(),
     ),
   );
 }
 
 class SettingsDialog extends StatelessWidget {
-  const SettingsDialog({this.onDone, this.progress, super.key});
+  const SettingsDialog({this.onDone, super.key});
 
   final VoidCallback? onDone;
-
-  /// Wallet behind the debug day-skipper. Null hides that row entirely.
-  final PlayerProgressController? progress;
 
   static const Color _pink = Color(0xFFE84F8F);
   static const Color _ink = Color(0xFF8A4B63);
@@ -95,10 +83,6 @@ class SettingsDialog extends StatelessWidget {
                   value: audio.sfxEnabled,
                   onPressed: audio.toggleSfx,
                 ),
-                if (kDebugMode && progress != null) ...<Widget>[
-                  const SizedBox(height: 14),
-                  _DebugDaySkipper(progress: progress!),
-                ],
                 const SizedBox(height: 12),
                 TextButton(
                   onPressed: () {
@@ -196,73 +180,3 @@ class _AudioToggle extends StatelessWidget {
   }
 }
 
-/// Debug-only: walk the daily-login streak forward a day at a time.
-///
-/// The streak only grows when the previous login was literally yesterday, so
-/// without this the seven-day ladder takes seven real days to see — and on a
-/// build whose stored prefs do not survive a restart it never leaves day 1.
-/// Compiled out of release builds by the [kDebugMode] guard at the call site.
-class _DebugDaySkipper extends StatelessWidget {
-  const _DebugDaySkipper({required this.progress});
-
-  final PlayerProgressController progress;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: progress,
-      builder: (BuildContext context, _) {
-        return Material(
-          color: const Color(0xFFF3ECFF),
-          borderRadius: BorderRadius.circular(18),
-          child: InkWell(
-            key: const Key('settings-debug-next-day'),
-            borderRadius: BorderRadius.circular(18),
-            onTap: () {
-              progress.debugAdvanceOneDay();
-              GameAudio.instance.tap();
-            },
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Row(
-                children: <Widget>[
-                  const Icon(
-                    Icons.fast_forward_rounded,
-                    color: Color(0xFF6B4EA8),
-                    size: 24,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        const Text(
-                          'Skip to tomorrow',
-                          style: TextStyle(
-                            fontFamily: 'Baloo2',
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF6B4EA8),
-                          ),
-                        ),
-                        Text(
-                          'debug only  ·  streak day ${progress.loginStreak}'
-                          '  ·  next ${progress.todayLoginReward} coins',
-                          style: const TextStyle(
-                            fontFamily: 'Baloo2',
-                            fontSize: 12,
-                            color: Color(0xFF8A7BB0),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}

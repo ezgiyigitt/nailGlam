@@ -87,20 +87,61 @@ class GameHost extends StatefulWidget {
   State<GameHost> createState() => _GameHostState();
 }
 
-class _GameHostState extends State<GameHost> {
+class _GameHostState extends State<GameHost> with WidgetsBindingObserver {
   late final NailGlamGame _game = NailGlamGame();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     PlayerProgress.load()
         .then((PlayerProgress progress) {
+          // Says out loud what came back off disk. A wallet that resets between
+          // runs is either a failed load or a store that never took the write,
+          // and the two look identical from inside the game.
+          debugPrint(
+            '[progress] loaded  store=${progress.store != null}  '
+            'coins=${progress.coins}  streak=${progress.loginStreak}  '
+            'lastDay="${progress.lastLoginDay}"  '
+            'claimed=${progress.loginClaimedToday}',
+          );
           _game.progress.attachModel(progress);
           if (mounted) {
             setState(() {});
           }
         })
-        .catchError((Object _) {});
+        // Never swallow this silently: a throw here leaves the game running on
+        // the in-memory wallet, which works perfectly until the next launch.
+        .catchError((Object error, StackTrace stack) {
+          debugPrint('[progress] LOAD FAILED: $error\n$stack');
+        });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The day only used to roll over on a cold start, because [PlayerProgress
+    // .load] — the one place that checked the calendar — only ever ran once,
+    // in [initState]. A session left open across midnight, or one resumed the
+    // next day from the app switcher rather than fully relaunched, kept
+    // reading yesterday's streak state until the player force-quit and
+    // reopened the app. Re-checking on every foreground return closes that
+    // gap without needing a restart at all.
+    if (state == AppLifecycleState.resumed) {
+      final wallet = _game.progress.wallet;
+      // Guards the window between the very first frame and PlayerProgress
+      // .load() resolving: attachModel has not run yet, so this would still
+      // be the disconnected placeholder from PlayerProgressController
+      // .memory() with no store to persist a rollover into.
+      if (wallet.store != null) {
+        wallet.refreshDay();
+      }
+    }
   }
 
   @override

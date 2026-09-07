@@ -142,13 +142,25 @@ class SalonScene extends Component with HasGameReference<FlameGame> {
         .toDouble();
     table.sprite = Sprite(image);
     table.size.setValues(width, GameConfig.tableHeight);
-    table.position.setValues(GameConfig.stationX, GameConfig.tableBottomY);
+    // Chairs already had per-item vertical overrides; desks did not, so every
+    // desk was pinned to the starter's placement no matter where its own art
+    // put the slab. A desk whose slab sits higher then covered more of the
+    // seated guest — she read as sitting inside the table.
+    table.position.setValues(
+      GameConfig.stationX,
+      GameConfig.tableBottomY + (item?.deskDropY ?? 0),
+    );
     final apronColor = item?.apronColor ?? SalonCatalog.starterTable.apronColor;
     tableApron.paint.color = ui.Color(apronColor);
   }
 
   void _snapPillowToTable(ShopItem tableItem) {
-    final y = tableItem.pillowCenterY ?? GameConfig.salonPillowCenterY;
+    // The armrest rides the slab, so it moves with the desk's drop. Both
+    // numbers come from the same measurement of that desk's art, which is why
+    // every desk ends up putting the armrest back on the canonical line.
+    final y =
+        (tableItem.pillowCenterY ?? GameConfig.salonPillowCenterY) +
+        tableItem.deskDropY;
     pillow.position.setValues(
       GameConfig.stationX + tableItem.pillowOffsetX,
       y,

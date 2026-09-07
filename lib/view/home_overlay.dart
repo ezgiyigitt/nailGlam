@@ -9,6 +9,7 @@ import 'cropped_asset.dart';
 import 'daily_reward_sheet.dart';
 import 'gold_coin.dart';
 import 'how_to_play_screen.dart';
+import 'motion.dart';
 import 'polish_reveal_logo.dart';
 import 'settings_sheet.dart';
 import 'shop_screen.dart';
@@ -131,69 +132,96 @@ class _HomeOverlayState extends State<HomeOverlay> {
 
                   return Column(
                     children: <Widget>[
+                      // The HUD assembles right-to-left over ~200ms instead of
+                      // blinking on with the background. Each step is 45ms —
+                      // long enough to read as a sequence, short enough that
+                      // nobody waits for it.
                       Align(
                         alignment: Alignment.topRight,
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            AnimatedBuilder(
-                              animation: _controller.progress,
-                              builder: (BuildContext context, _) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 10),
-                                  child: GoldBalanceChip(
-                                    coins: _controller.progress.coins,
-                                    onTap: () => showCoinsSheet(
-                                      context: context,
-                                      wallet: _controller.progress.wallet,
-                                      onOpenShop: _openShop,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                            AnimatedBuilder(
-                              animation: _controller.progress,
-                              builder: (BuildContext context, _) {
-                                if (!_controller.progress.canClaimLogin) {
-                                  return const SizedBox.shrink();
-                                }
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 10),
-                                  child: _MenuIconButton(
-                                    tooltip: 'Daily coins',
-                                    icon: Icons.card_giftcard_rounded,
-                                    onPressed: () {
-                                      GameAudio.instance.tap();
-                                      showDailyRewardSheet(
+                            FadeSlideIn(
+                              delay: const Duration(milliseconds: 180),
+                              child: AnimatedBuilder(
+                                animation: _controller.progress,
+                                builder: (BuildContext context, _) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 10),
+                                    child: GoldBalanceChip(
+                                      coins: _controller.progress.coins,
+                                      onTap: () => showCoinsSheet(
                                         context: context,
-                                        progressController: _controller.progress,
-                                      );
-                                    },
-                                  ),
+                                        wallet: _controller.progress.wallet,
+                                        onOpenShop: _openShop,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            AnimatedBuilder(
+                              animation: _controller.progress,
+                              builder: (BuildContext context, _) {
+                                // The gift button comes and goes with the daily
+                                // claim, so it gets a size transition too —
+                                // otherwise collecting the reward makes the
+                                // whole row jump sideways.
+                                return AnimatedSize(
+                                  duration: AppMotion.standard,
+                                  curve: AppMotion.move,
+                                  alignment: Alignment.centerRight,
+                                  child: !_controller.progress.canClaimLogin
+                                      ? const SizedBox.shrink()
+                                      : Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 10,
+                                          ),
+                                          child: _MenuIconButton(
+                                            tooltip: 'Daily coins',
+                                            icon: Icons.card_giftcard_rounded,
+                                            onPressed: () {
+                                              GameAudio.instance.tap();
+                                              showDailyRewardSheet(
+                                                context: context,
+                                                progressController:
+                                                    _controller.progress,
+                                              );
+                                            },
+                                          ),
+                                        ),
                                 );
                               },
                             ),
-                            _MenuIconButton(
-                              tooltip: 'Salon shop',
-                              icon: Icons.storefront_rounded,
-                              onPressed: _openShop,
+                            FadeSlideIn(
+                              delay: const Duration(milliseconds: 135),
+                              child: _MenuIconButton(
+                                tooltip: 'Salon shop',
+                                icon: Icons.storefront_rounded,
+                                onPressed: _openShop,
+                              ),
                             ),
                             const SizedBox(width: 10),
                             Column(
                               mainAxisSize: MainAxisSize.min,
                               children: <Widget>[
-                                _MenuIconButton(
-                                  tooltip: 'Settings',
-                                  icon: Icons.settings_rounded,
-                                  onPressed: _openSettings,
+                                FadeSlideIn(
+                                  delay: const Duration(milliseconds: 90),
+                                  child: _MenuIconButton(
+                                    tooltip: 'Settings',
+                                    icon: Icons.settings_rounded,
+                                    onPressed: _openSettings,
+                                  ),
                                 ),
                                 const SizedBox(height: 10),
-                                _MenuIconButton(
-                                  tooltip: 'Guests',
-                                  icon: Icons.people_alt_rounded,
-                                  onPressed: _openGuests,
+                                FadeSlideIn(
+                                  delay: const Duration(milliseconds: 45),
+                                  child: _MenuIconButton(
+                                    tooltip: 'Guests',
+                                    icon: Icons.people_alt_rounded,
+                                    onPressed: _openGuests,
+                                  ),
                                 ),
                               ],
                             ),
@@ -253,39 +281,68 @@ class _HomeOverlayState extends State<HomeOverlay> {
                 },
               ),
             ),
-            if (_settingsOpen) ...<Widget>[
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _closeSettings,
-                  child: const ColoredBox(color: Color(0xCC3A1C28)),
-                ),
+            // Both panels used to be hard cuts: the scrim and the dialog
+            // simply existed on the next frame. Fading the scrim while the
+            // panel springs up is what makes it read as arriving from the
+            // button rather than replacing the screen.
+            _MenuScrim(
+              open: _settingsOpen,
+              onDismiss: _closeSettings,
+              child: SettingsDialog(onDone: _closeSettings),
+            ),
+            _MenuScrim(
+              open: _guestsOpen,
+              onDismiss: _closeGuests,
+              child: _GuestsDialog(
+                selected: _controller.selectedGuest,
+                onSelect: _selectGuest,
+                onDone: _closeGuests,
               ),
-              Center(
-                child: SettingsDialog(
-                  onDone: _closeSettings,
-                  // Only reaches the UI in debug builds — see the day-skipper
-                  // row inside the dialog.
-                  progress: _controller.progress,
-                ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Dimmed backdrop plus the panel that springs in on top of it.
+///
+/// Kept as one widget so the scrim and the panel can never disagree about
+/// whether they are open — the bug you get from two `if` blocks side by side.
+class _MenuScrim extends StatelessWidget {
+  const _MenuScrim({
+    required this.open,
+    required this.onDismiss,
+    required this.child,
+  });
+
+  final bool open;
+  final VoidCallback onDismiss;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      ignoring: !open,
+      child: AnimatedOpacity(
+        opacity: open ? 1 : 0,
+        // Closing is quicker than opening: the decision is already made, so
+        // holding the panel on screen is just delay.
+        duration: open ? AppMotion.standard : AppMotion.fast,
+        curve: open ? AppMotion.enter : AppMotion.exit,
+        child: Stack(
+          children: <Widget>[
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onDismiss,
+                child: const ColoredBox(color: Color(0xCC3A1C28)),
               ),
-            ],
-            if (_guestsOpen) ...<Widget>[
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _closeGuests,
-                  child: const ColoredBox(color: Color(0xCC3A1C28)),
-                ),
-              ),
-              Center(
-                child: _GuestsDialog(
-                  selected: _controller.selectedGuest,
-                  onSelect: _selectGuest,
-                  onDone: _closeGuests,
-                ),
-              ),
-            ],
+            ),
+            // Rebuilt on each open so the entrance spring actually replays;
+            // a kept-alive child would fade in already at rest.
+            if (open) Center(child: SheetEntrance(child: child)),
           ],
         ),
       ),
@@ -395,16 +452,22 @@ class _GuestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: selected ? const Color(0xFFFFE0EF) : const Color(0xFFFFF6EE),
-      borderRadius: BorderRadius.circular(22),
-      child: InkWell(
-        key: Key('guest-card-${guest.id}'),
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Container(
+    return KeyedSubtree(
+      key: Key('guest-card-${guest.id}'),
+      child: PressableScale(
+        semanticLabel: guest.name,
+        pressedScale: 0.975,
+        onPressed: onTap,
+        // Selection crossfades instead of snapping, so the eye can follow which
+        // card took the highlight when it moves between two of them.
+        child: AnimatedContainer(
+          duration: AppMotion.standard,
+          curve: AppMotion.move,
           padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
           decoration: BoxDecoration(
+            color: selected
+                ? const Color(0xFFFFE0EF)
+                : const Color(0xFFFFF6EE),
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
               color: selected ? const Color(0xFFE56B97) : Colors.white,
@@ -440,13 +503,29 @@ class _GuestCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
-                selected
-                    ? Icons.check_circle_rounded
-                    : Icons.circle_outlined,
-                color: selected
-                    ? const Color(0xFFE56B97)
-                    : const Color(0xFFC98AA3),
+              // The tick scales in rather than replacing the empty circle on
+              // one frame — a swap that fast just looks like a rendering
+              // glitch, and this is the card's only confirmation.
+              AnimatedSwitcher(
+                duration: AppMotion.standard,
+                switchInCurve: AppMotion.enter,
+                switchOutCurve: AppMotion.exit,
+                transitionBuilder: (Widget child, Animation<double> anim) =>
+                    ScaleTransition(
+                      scale: anim,
+                      child: FadeTransition(opacity: anim, child: child),
+                    ),
+                child: selected
+                    ? const Icon(
+                        Icons.check_circle_rounded,
+                        key: ValueKey<bool>(true),
+                        color: Color(0xFFE56B97),
+                      )
+                    : const Icon(
+                        Icons.circle_outlined,
+                        key: ValueKey<bool>(false),
+                        color: Color(0xFFC98AA3),
+                      ),
               ),
             ],
           ),
@@ -545,7 +624,7 @@ class _GuestFaceAvatarState extends State<_GuestFaceAvatar> {
   }
 }
 
-class _MenuArtButton extends StatefulWidget {
+class _MenuArtButton extends StatelessWidget {
   const _MenuArtButton({
     required this.asset,
     required this.semanticLabel,
@@ -559,35 +638,22 @@ class _MenuArtButton extends StatefulWidget {
   final VoidCallback onPressed;
 
   @override
-  State<_MenuArtButton> createState() => _MenuArtButtonState();
-}
-
-class _MenuArtButtonState extends State<_MenuArtButton> {
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: widget.semanticLabel,
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTapUp: (_) {
-          setState(() => _pressed = false);
-          widget.onPressed();
-        },
-        child: AnimatedScale(
-          scale: _pressed ? 0.96 : 1,
-          duration: const Duration(milliseconds: 90),
-          curve: Curves.easeOutCubic,
-          child: Image.asset(
-            'assets/images/${widget.asset}',
-            width: widget.width,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
-          ),
-        ),
+    // Was a hand-rolled AnimatedScale: 0.96 down and the same curve played
+    // backwards on release, which is exactly the part that felt cheap — real
+    // buttons do not rise at the speed they fell. [PressableScale] presses on
+    // an ease and releases on a spring, and carries the haptic too.
+    return PressableScale(
+      semanticLabel: semanticLabel,
+      // Slightly shallower than the icon buttons: these are wide, and the same
+      // percentage on a 320px target travels far enough to look like a glitch.
+      pressedScale: 0.96,
+      onPressed: onPressed,
+      child: Image.asset(
+        'assets/images/$asset',
+        width: width,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
       ),
     );
   }
@@ -613,16 +679,22 @@ class _MenuIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
-      child: Material(
-        color: _MenuColors.pink,
-        elevation: 4,
-        shadowColor: const Color(0x55964172),
-        shape: const CircleBorder(
-          side: BorderSide(color: _MenuColors.cream, width: 3),
-        ),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onPressed,
+      // Ink ripple removed on purpose. A ripple is a Material signature: it
+      // spreads from the touch point and finishes after the finger is gone, so
+      // the button reads as a surface being stamped. These are small physical
+      // controls, so they take the press and spring back instead — and at 46px
+      // a 7% dip is the amount that reads without looking like a bug.
+      child: PressableScale(
+        semanticLabel: tooltip,
+        pressedScale: 0.93,
+        onPressed: onPressed,
+        child: Material(
+          color: _MenuColors.pink,
+          elevation: 4,
+          shadowColor: const Color(0x55964172),
+          shape: const CircleBorder(
+            side: BorderSide(color: _MenuColors.cream, width: 3),
+          ),
           child: SizedBox(
             width: 46,
             height: 46,
