@@ -250,6 +250,51 @@ abstract final class GameConfig {
   static const int nailCarePolishCoinReward = 45;
   static const int nailCareAdMultiplier = 2;
 
+  // --- Guest patience -------------------------------------------------
+  //
+  // Patience is a soft timer, never a fail state: it only scales the tip and
+  // sours the guest's face. Letting it run out costs the player the bonus,
+  // it does not end the manicure — a casual player who wanders off mid-visit
+  // should still get to finish and keep every coin they actually earned.
+
+  // Patience is budgeted from the work in front of the guest, not from a
+  // flat clock. A manicure is the hand wash plus up to three paid stages per
+  // finger — sixteen in all — while a pedicure treats the whole foot at once
+  // and is only four. One fixed duration served neither: it left every
+  // pedicure finishing on a full bar (a free maximum tip) and squeezed every
+  // manicure to nothing however well it was played.
+
+  /// Fixed allowance every visit gets regardless of length, covering the
+  /// parts that do not scale with stage count: reading the first cue,
+  /// settling in, the opening wash.
+  static const double nailCarePatienceBaseSeconds = 20;
+
+  /// Allowance added per paid stage in the flow. A stage costs roughly five
+  /// seconds played briskly, so this leaves a comfortable margin: a confident
+  /// run should finish with a bit over half the bar left.
+  static const double nailCarePatiencePerStageSeconds = 10;
+
+  /// Tip paid at a full patience bar, scaled linearly down to nothing as the
+  /// bar empties. Sits between one and two stage rewards so a brisk visit is
+  /// worth noticeably more than a slow one without dwarfing the base pay.
+  static const int nailCareMaxTipCoins = 60;
+
+  // --- Combo ----------------------------------------------------------
+
+  /// A stage completed within this many seconds of starting, without the tool
+  /// ever slipping off the target, extends the combo. Wide enough that the
+  /// slowest single stage (the ~3.4s hand wash) plus the drag to reach it
+  /// still lands comfortably inside it.
+  static const double nailCareComboWindow = 8;
+
+  /// Clean stages needed before the payout multiplier steps up. Below the
+  /// first threshold every reward pays face value, so an unhurried player
+  /// never earns *less* than they would have before combos existed.
+  static const int nailCareComboTier1 = 2;
+  static const int nailCareComboTier2 = 4;
+  static const double nailCareComboMultiplier1 = 1.5;
+  static const double nailCareComboMultiplier2 = 2;
+
   /// Local plate position of the pinky close-up sprite.
   static const double pinkySpriteCenterX = workspacePlateWidth / 2;
   static const double pinkySpriteCenterY = workspacePlateHeight * 0.40;

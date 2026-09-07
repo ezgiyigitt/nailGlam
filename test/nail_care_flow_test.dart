@@ -183,6 +183,12 @@ void main() {
     }
     expect(game.isLoaded, isTrue);
 
+    // This test asserts the exact face value of every stage reward, so the
+    // combo multiplier is pinned off: with it on, the totals below would
+    // climb as the run stayed clean and stop testing the base economy.
+    // Combo behaviour has its own coverage in nail_care_scoring_test.dart.
+    game.nailCare.comboEnabled = false;
+
     game.debugOpenNailCare();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 32));

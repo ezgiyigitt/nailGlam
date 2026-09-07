@@ -82,9 +82,14 @@ abstract final class AssetPaths {
   static const String toolSpray4 = 'tool_spray_4.png';
   static const String toolSpray5 = 'tool_spray_5.png';
   static const String toolSpray6 = 'tool_spray_6.png';
-  static const String toolWipe1 = 'tool_wipe_1.png';
-  static const String toolWipe2 = 'tool_wipe_2.png';
-  static const String toolWipe3 = 'tool_wipe_3.png';
+  // The old tool_wipe_1/2/3.png files were bad crops (tiny box adrift in a
+  // huge transparent canvas, bleeding pixels from neighbouring frames). These
+  // now point at tool_wipe_premium_1/2/3.png — clean per-frame crops sliced
+  // straight out of premiumWipe's 4-box strip (frame 0 of that strip already
+  // matches the starter Nail Wipe look, so it's skipped here).
+  static const String toolWipe1 = 'tool_wipe_premium_1.png';
+  static const String toolWipe2 = 'tool_wipe_premium_2.png';
+  static const String toolWipe3 = 'tool_wipe_premium_3.png';
   static const String toolWipe4 = 'tool_wipe_4.png';
   static const String toolWipe5 = 'tool_wipe_5.png';
   static const String toolWipe6 = 'tool_wipe_6.png';

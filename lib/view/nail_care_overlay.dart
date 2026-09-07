@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'package:nail_glam/model/game_config.dart';
-import 'package:nail_glam/model/asset_paths.dart';
 import 'package:nail_glam/model/nail_care_tools.dart';
 import 'package:nail_glam/controller/nail_glam_game.dart';
 import 'package:nail_glam/view/cute_hand_sim.dart';
@@ -11,6 +10,7 @@ import 'confetti_burst.dart';
 import 'customer_emotion_avatar.dart';
 import 'flying_coins.dart';
 import 'gold_coin.dart';
+import 'tool_purchase_button.dart';
 
 /// Gameplay HUD for the manicure plate: kit drawer, drop target, and Next.
 class NailCareOverlay extends StatelessWidget {
@@ -55,6 +55,14 @@ class _NailCareHudState extends State<_NailCareHud> {
   /// so the bottom column never changes height mid-stage. The chip itself is
   /// 40 tall (20 icon + 2×10 padding); the rest is the gap above [_NextButton].
   static const double _adBonusSlotHeight = 50;
+
+  /// The guest block at the top of the HUD: 92 avatar + 6 + the ~26 name chip
+  /// + 6 + the 7 patience bar, rounded up.
+  ///
+  /// The stage cue below is positioned off this rather than off a magic
+  /// number. Growing the block to fit the patience bar is exactly what slid
+  /// the cue underneath it once already.
+  static const double _guestBlockHeight = 140;
 
   /// The stage-label line. Tall enough for the ad chip that shares it (40), so
   /// the line — and everything stacked above it — keeps its height whether the
@@ -161,6 +169,23 @@ class _NailCareHudState extends State<_NailCareHud> {
       _previewUnlocking = false;
       _previewUnlockDone = false;
     });
+  }
+
+  /// Borrows the previewed tool for this visit in exchange for an ad.
+  ///
+  /// On success the sheet closes straight away rather than showing a
+  /// "purchased" beat: the tool is already selected by the controller, so
+  /// getting out of the way puts it in the player's hand immediately.
+  Future<void> _trialPreview() async {
+    final item = _previewItem;
+    if (item == null) {
+      return;
+    }
+    final started = await game.nailCare.watchAdForTrial(item);
+    if (!mounted || !started) {
+      return;
+    }
+    _closePreview();
   }
 
   void _onCareChanged() {
@@ -305,7 +330,7 @@ class _NailCareHudState extends State<_NailCareHud> {
               child: Padding(
                 padding: const EdgeInsets.only(top: GameConfig.hudPad),
                 child: SizedBox(
-                  height: 124,
+                  height: _guestBlockHeight,
                   child: Stack(
                     alignment: Alignment.topCenter,
                     children: <Widget>[
@@ -320,6 +345,11 @@ class _NailCareHudState extends State<_NailCareHud> {
                           ),
                           const SizedBox(height: 6),
                           _GuestNameChip(name: game.guest.name),
+                          const SizedBox(height: 6),
+                          _PatienceBar(
+                            key: const Key('nail-care-patience'),
+                            patience: care.patience,
+                          ),
                         ],
                       ),
                       Align(
@@ -348,9 +378,21 @@ class _NailCareHudState extends State<_NailCareHud> {
           Positioned(
             left: 28,
             right: 28,
-            top: 148,
-            child: IgnorePointer(
-              child: _StageCue(text: care.stageCue!),
+            top: 0,
+            // Inside the same SafeArea and padding as the guest block, then
+            // pushed past its full height. The old fixed 148 was measured on
+            // a phone with no notch, so it already crept under the guest's
+            // name on a taller device before the patience bar existed.
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  top: GameConfig.hudPad + _guestBlockHeight + 10,
+                ),
+                child: IgnorePointer(
+                  child: _StageCue(text: care.stageCue!),
+                ),
+              ),
             ),
           ),
         if (care.showsSelectedTool && selected != null)
@@ -411,6 +453,13 @@ class _NailCareHudState extends State<_NailCareHud> {
                               ),
                             ),
                           ),
+                          if (care.showsComboChip) ...<Widget>[
+                            _ComboChip(
+                              key: const Key('nail-care-combo'),
+                              multiplier: care.comboMultiplier,
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                           if (care.showsAdBonusOffer || care.adBonusPending)
                             _AdBonusChip(
                               bonus: care.adBonusCoins,
@@ -579,6 +628,9 @@ class _NailCareHudState extends State<_NailCareHud> {
                     selected: care.selectedItemId == _previewItem!.id,
                     unlocking: _previewUnlocking,
                     unlockDone: _previewUnlockDone,
+                    canTrial: care.canTrialItem(_previewItem!),
+                    trialPending: care.trialPending,
+                    onTrial: _trialPreview,
                     onClose: _closePreview,
                     onUnlock: _unlockPreview,
                     onEquip: () {
@@ -1276,6 +1328,9 @@ class _InventoryPreviewSheet extends StatelessWidget {
     required this.onClose,
     required this.onUnlock,
     required this.onEquip,
+    required this.canTrial,
+    required this.trialPending,
+    required this.onTrial,
   });
 
   final NailGlamGame game;
@@ -1287,6 +1342,13 @@ class _InventoryPreviewSheet extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onUnlock;
   final VoidCallback onEquip;
+
+  /// Whether this item can be borrowed for the visit by watching an ad.
+  final bool canTrial;
+
+  /// True while the trial ad is on screen.
+  final bool trialPending;
+  final VoidCallback onTrial;
 
   @override
   Widget build(BuildContext context) {
@@ -1317,16 +1379,7 @@ class _InventoryPreviewSheet extends StatelessWidget {
                   tooltip: 'Close preview',
                 ),
               ),
-              TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0.72, end: 1),
-                duration: const Duration(milliseconds: 360),
-                curve: Curves.easeOutBack,
-                builder: (BuildContext context, double scale, Widget? child) {
-                  return Transform.rotate(
-                    angle: (1 - scale) * 0.18,
-                    child: Transform.scale(scale: scale, child: child),
-                  );
-                },
+              PreviewArtPopIn(
                 child: AtlasToolImage(
                   game: game,
                   toolId: item.toolId,
@@ -1347,15 +1400,24 @@ class _InventoryPreviewSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              if (!owned || unlocking || unlockDone)
-                _PurchaseButton(
+              if (!owned || unlocking || unlockDone) ...<Widget>[
+                ToolPurchaseButton(
                   price: item.unlockPrice,
                   label: buttonLabel,
                   unlocking: unlocking,
                   unlockDone: unlockDone,
                   onPressed: onUnlock,
-                )
-              else
+                ),
+                // Second door out of this sheet: borrow the tool for this
+                // visit instead of buying it. Sits under the price so it
+                // reads as the cheaper option rather than competing with it —
+                // the point is to let the tool sell itself, not to replace
+                // the purchase.
+                if (canTrial || trialPending) ...<Widget>[
+                  const SizedBox(height: 8),
+                  _TrialButton(busy: trialPending, onPressed: onTrial),
+                ],
+              ] else
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -1379,155 +1441,57 @@ class _InventoryPreviewSheet extends StatelessWidget {
     );
   }
 }
-class _PurchaseButton extends StatelessWidget {
-  const _PurchaseButton({
-    required this.price,
-    required this.label,
-    required this.unlocking,
-    required this.unlockDone,
-    required this.onPressed,
-  });
+// ToolPurchaseButton and UnlockLockVisual moved to tool_purchase_button.dart
+// so the Salon Shop's Tools tab can share this exact purchase moment instead
+// of carrying its own copy.
 
-  final int price;
-  final String label;
-  final bool unlocking;
-  final bool unlockDone;
+/// "Try it this visit" — the rewarded-ad alternative to paying for a tool.
+///
+/// Deliberately quieter than the purchase button above it: outlined rather
+/// than filled, so the sheet still leads with the sale.
+class _TrialButton extends StatelessWidget {
+  const _TrialButton({required this.busy, required this.onPressed});
+
+  final bool busy;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: <Widget>[
-        Positioned.fill(
-          top: 7,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-                color: unlockDone
-                  ? const Color(0xFF4F8D5A)
-                  : const Color(0xFFB74E78),
-              borderRadius: BorderRadius.circular(14),
-            ),
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        key: const Key('nail-care-tool-trial'),
+        onPressed: busy ? null : onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF8A4B63),
+          side: const BorderSide(color: Color(0xFFE0B6C6), width: 2),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            key: const Key('nail-care-unlock'),
-            onPressed: unlocking || unlockDone ? null : onPressed,
-            style: ElevatedButton.styleFrom(
-                backgroundColor: unlockDone
-                  ? const Color(0xFF73B87D)
-                  : const Color(0xFFE56B97),
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: unlockDone
-                  ? const Color(0xFF8BC49A)
-                  : const Color(0xFFE56B97),
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
-                if (!unlockDone) ...<Widget>[
-                  const SizedBox(width: 6),
-                  const GoldCoin(size: 18),
-                  const SizedBox(width: 4),
-                  Text('$price'),
-                ] else
-                  const Icon(Icons.check_rounded, size: 20),
-              ],
-            ),
-          ),
-        ),
-        Positioned(
-          top: -27,
-          left: -8,
-          child: _UnlockLockVisual(
-            opening: unlocking,
-            open: unlockDone,
-          ),
-        ),
-      ],
-    );
-  }
-}
-class _UnlockLockVisual extends StatefulWidget {
-  const _UnlockLockVisual({required this.opening, required this.open});
-
-  final bool opening;
-  final bool open;
-
-  @override
-  State<_UnlockLockVisual> createState() => _UnlockLockVisualState();
-}
-
-class _UnlockLockVisualState extends State<_UnlockLockVisual>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-      value: widget.open ? 1 : 0,
-    );
-    if (widget.opening) {
-      _controller.forward(from: 0);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _UnlockLockVisual oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.opening && !oldWidget.opening) {
-      _controller.forward(from: 0);
-    } else if (widget.open && !oldWidget.open) {
-      _controller.value = 1;
-    } else if (!widget.opening && !widget.open) {
-      _controller.value = 0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (BuildContext context, Widget? child) {
-        final frame = (_controller.value * 2).round().clamp(0, 2);
-        const frameSize = 64.0;
-        return SizedBox(
-          width: frameSize,
-          height: frameSize,
-          child: ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.centerLeft,
-              minWidth: frameSize * 3,
-              maxWidth: frameSize * 3,
-              minHeight: frameSize,
-              maxHeight: frameSize,
-              child: Transform.translate(
-                offset: Offset(-frame * frameSize, 0),
-                child: Image.asset(
-                  'assets/images/${AssetPaths.lock}',
-                  width: frameSize * 3,
-                  height: frameSize,
-                  fit: BoxFit.fill,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            if (busy)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8A4B63)),
                 ),
-              ),
+              )
+            else
+              const Icon(Icons.play_circle_outline_rounded, size: 19),
+            const SizedBox(width: 8),
+            Text(
+              busy ? 'Playing ad...' : 'Try it this visit',
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1661,6 +1625,130 @@ class _FinishedPolishRow extends StatelessWidget {
 /// The chip only exists while `NailCareController.showsAdBonusOffer` is true —
 /// i.e. a reward was just paid, the offer has not been taken, and the ad is
 /// actually loaded — so it can never be tapped into a dead end.
+/// How much of the guest's goodwill is left, as a plain fill bar.
+///
+/// Colour carries the warning, not an icon: mint while there is plenty of
+/// time, amber as it gets tight, rose once the tip is nearly gone. The whole
+/// thing is drawn from rounded rectangles, so it needs no art.
+class _PatienceBar extends StatelessWidget {
+  const _PatienceBar({required this.patience, super.key});
+
+  /// 1 = freshly seated, 0 = out of patience.
+  final double patience;
+
+  static const double _width = 96;
+  static const double _height = 7;
+
+  /// Thresholds match the mood bands in `_patienceMoodPenalty`, so the bar
+  /// changing colour and the guest's face dropping are the same event twice
+  /// rather than two unrelated warnings.
+  Color get _fillColor {
+    if (patience >= 0.5) {
+      return const Color(0xFF5FC79B);
+    }
+    if (patience >= 0.3) {
+      return const Color(0xFFF2B740);
+    }
+    return const Color(0xFFE8657F);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _width,
+      height: _height,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0x33FFFFFF),
+          borderRadius: BorderRadius.circular(_height / 2),
+          border: Border.all(color: const Color(0x22000000)),
+        ),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          // The controller only notifies every ~0.004 of the bar, so the
+          // tween is what turns those steps back into a smooth creep.
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: patience, end: patience.clamp(0.0, 1.0)),
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOut,
+            builder: (BuildContext context, double value, Widget? child) {
+              return FractionallySizedBox(
+                widthFactor: value.clamp(0.0, 1.0),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: _fillColor,
+                    borderRadius: BorderRadius.circular(_height / 2),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The live payout multiplier, shown only while it is above face value.
+///
+/// Scales up each time the multiplier steps, so the reward for a clean run
+/// registers as a moment rather than a number that quietly changed.
+class _ComboChip extends StatelessWidget {
+  const _ComboChip({required this.multiplier, super.key});
+
+  final double multiplier;
+
+  @override
+  Widget build(BuildContext context) {
+    // 1.5 needs its decimal, 2 does not.
+    final label = multiplier == multiplier.roundToDouble()
+        ? multiplier.toStringAsFixed(0)
+        : multiplier.toStringAsFixed(1);
+    return TweenAnimationBuilder<double>(
+      // Keyed on the multiplier so the pop replays on each step up, not on
+      // every rebuild while the combo holds.
+      key: ValueKey<double>(multiplier),
+      tween: Tween<double>(begin: 0.7, end: 1),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutBack,
+      builder: (BuildContext context, double scale, Widget? child) {
+        return Transform.scale(scale: scale, child: child);
+      },
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFFB74E78),
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(
+                Icons.local_fire_department_rounded,
+                size: 16,
+                color: Color(0xFFFFD9E6),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '×$label',
+                style: const TextStyle(
+                  fontFamily: NailCareOverlay._displayFont,
+                  fontSize: 15,
+                  height: 1,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AdBonusChip extends StatelessWidget {
   const _AdBonusChip({
     required this.bonus,

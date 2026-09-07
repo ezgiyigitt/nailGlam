@@ -9,6 +9,15 @@ enum AdPlacement {
   /// "Watch to double this stage's coins", offered right after a wash / cut /
   /// buffer / polish reward burst. See `NailCareController.watchAdForBonus`.
   stageBonus,
+
+  /// "Watch to use this locked tool for the rest of this visit", offered from
+  /// a locked item's preview sheet. See `NailCareController.watchAdForTrial`.
+  ///
+  /// The point of this placement is conversion, not ad revenue: letting
+  /// someone actually feel a tool they have not bought is what makes its
+  /// price tag legible. Keep it scoped to a single visit so it stays a taste
+  /// of the thing rather than a substitute for buying it.
+  toolTrial,
 }
 
 /// The seam between the game and whatever ad SDK ships with it.

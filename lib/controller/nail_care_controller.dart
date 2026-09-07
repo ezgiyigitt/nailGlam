@@ -69,6 +69,111 @@ class NailCareController extends Component
   int coinBurstGeneration = 0;
   int coinBurstAmount = 0;
 
+  // --- Guest patience -------------------------------------------------
+
+  /// 1 = freshly seated, 0 = out of patience. Drains in [update] while there
+  /// is work on screen, and scales the tip paid at the reveal. It is a bonus
+  /// dial, not a fail timer: hitting 0 costs the tip and sours the guest's
+  /// face, and nothing else.
+  double patience = 1;
+
+  /// The tip [_awardTip] actually paid, kept so the reveal can name it.
+  int tipPaid = 0;
+
+  /// Guards against a re-entered reveal paying a second tip for one guest.
+  bool _tipAwarded = false;
+
+  /// Seconds of patience this visit was given, sized from the flow's length
+  /// when the guest sat down. See [_flowStageCount].
+  double _patienceBudget = GameConfig.nailCarePatienceBaseSeconds;
+
+  /// Seconds the guest has actually been waiting this visit. Only used for
+  /// the calibration readout at the reveal.
+  double _visitElapsed = 0;
+
+  /// How long this visit's patience bar is set to last, in seconds.
+  double get patienceBudgetSeconds => _patienceBudget;
+
+  /// Paid stages the current flow will run through, which is what the
+  /// patience budget is sized from.
+  ///
+  /// A pedicure is four: wash, wipe, cut, polish, each covering the whole
+  /// foot. A manicure is the wash plus one per finger for the spray/wipe
+  /// pair, plus two more for every finger this guest's kit actually cuts and
+  /// polishes — sixteen for a full set, fewer for a kit that skips fingers.
+  int get _flowStageCount {
+    if (careTarget == CareTarget.foot) {
+      return 4;
+    }
+    var stages = 1;
+    for (final NailDigit d in NailDigit.values) {
+      stages += 1;
+      if (careKit.allowsCutAndPolish(d)) {
+        stages += 2;
+      }
+    }
+    return stages;
+  }
+
+  // --- Combo ----------------------------------------------------------
+
+  /// Consecutive stages finished promptly and without the tool slipping.
+  int combo = 0;
+
+  /// Best [combo] this visit, so the reveal can praise a run the player has
+  /// since dropped.
+  int bestCombo = 0;
+
+  /// Seconds the current stage has been open. Reset by [_syncStageClock].
+  double _stageElapsed = 0;
+
+  /// Patience value at the last [notifyListeners] the drain itself triggered,
+  /// so the bar can creep without repainting the HUD every frame.
+  double _lastNotifiedPatience = 1;
+
+  /// Stage the clock above is currently timing. See [_syncStageClock].
+  NailCareStage? _timedStage;
+
+  /// True once the tool has slipped off the target during this stage, which
+  /// disqualifies it from extending the combo.
+  bool _stageSlipped = false;
+
+  /// Lets a test pin the payout to the base rewards. The flow test asserts
+  /// exact coin totals stage by stage, and a multiplier that climbs while it
+  /// pumps would turn those into moving targets.
+  @visibleForTesting
+  bool comboEnabled = true;
+
+  /// Multiplier the next stage reward will be paid at.
+  double get comboMultiplier {
+    if (!comboEnabled) {
+      return 1;
+    }
+    if (combo >= GameConfig.nailCareComboTier2) {
+      return GameConfig.nailCareComboMultiplier2;
+    }
+    if (combo >= GameConfig.nailCareComboTier1) {
+      return GameConfig.nailCareComboMultiplier1;
+    }
+    return 1;
+  }
+
+  /// True once the multiplier is actually above face value, so the HUD only
+  /// shows a chip when there is something to brag about.
+  bool get showsComboChip => showsProgressBar && comboMultiplier > 1;
+
+  // --- Ad-funded tool trials ------------------------------------------
+
+  /// Items unlocked for this visit only by watching a rewarded ad. Cleared
+  /// whenever a new guest sits down, so a trial can never become ownership.
+  final Set<String> _trialItemIds = <String>{};
+
+  /// True while a trial ad is on screen, so the sheet can show a spinner and
+  /// a second tap cannot start a second ad.
+  bool trialPending = false;
+
+  bool isTrialUnlocked(String id) => _trialItemIds.contains(id);
+
   bool _washStarted = false;
   int _activePolishColor = NailCareInventory.polishes.first.polishColor;
   final Map<NailDigit, int> polishByDigit = <NailDigit, int>{};
@@ -512,7 +617,15 @@ class NailCareController extends Component
   }
 
   /// 0 = unhappy … 4 = delighted. One emotion sheet frame.
-  int get emotionFrame {
+  ///
+  /// Two things move this face: how far the manicure has come, and how much
+  /// patience the guest has left. The first sets the ceiling, the second
+  /// drags it down — so dawdling visibly sours a guest who would otherwise be
+  /// delighted, using the emotion strip that already ships.
+  int get emotionFrame =>
+      (_progressEmotionFrame - _patienceMoodPenalty).clamp(0, 4);
+
+  int get _progressEmotionFrame {
     final progress = reactionProgress;
     if (progress >= 0.999) {
       return 4;
@@ -527,6 +640,29 @@ class NailCareController extends Component
       return 1;
     }
     return 0;
+  }
+
+  /// Frames knocked off the face as patience drains.
+  ///
+  /// The top band is the widest because a briskly played visit should end
+  /// with a little over half the bar left, and that run has earned a
+  /// delighted guest — the face is meant to punish dawdling, not ordinary
+  /// play. Below half it drops a frame per band.
+  ///
+  /// Note this only shows once the manicure itself has cheered the guest up:
+  /// [_progressEmotionFrame] starts at 0, and the clamp in [emotionFrame]
+  /// means early dawdling holds the face down rather than pushing it lower.
+  int get _patienceMoodPenalty {
+    if (patience >= 0.50) {
+      return 0;
+    }
+    if (patience >= 0.30) {
+      return 1;
+    }
+    if (patience >= 0.15) {
+      return 2;
+    }
+    return 3;
   }
 
   bool canUse(NailCareToolId id) {
@@ -547,8 +683,14 @@ class NailCareController extends Component
   List<NailCareInventoryItem> get currentKit =>
       NailCareInventory.itemsFor(stage);
 
+  /// Whether the player may use [item] right now. Deliberately the single
+  /// gate for "can I hold this tool": free starters, bought skins and
+  /// ad-funded trials all answer here, so a trial behaves exactly like
+  /// ownership everywhere in the manicure without a second code path.
   bool ownsKitItem(NailCareInventoryItem item) =>
-      item.unlocked || progressOf().owns(item.id);
+      item.unlocked ||
+      progressOf().owns(item.id) ||
+      _trialItemIds.contains(item.id);
 
   void toggleInventory([List<NailCareInventoryItem>? kit]) {
     // Only the polish stage still has a picker; every other kit is equipped in
@@ -701,6 +843,48 @@ class NailCareController extends Component
     notifyListeners();
   }
 
+  /// Whether [item] can be borrowed for this visit by watching an ad: it has
+  /// to be a real locked item, not already trialled, and the ad has to be
+  /// loaded so the button never appears for a tap that would fail.
+  bool canTrialItem(NailCareInventoryItem item) =>
+      !ownsKitItem(item) &&
+      item.unlockPrice > 0 &&
+      !trialPending &&
+      AdsService.instance.isRewardedReady(AdPlacement.toolTrial);
+
+  /// Plays a rewarded ad and, only if the network says the reward was earned,
+  /// lends [item] for the rest of this visit. Returns whether the trial
+  /// started, so the sheet can decide what to show next.
+  ///
+  /// The loan lives in [_trialItemIds] alone — nothing is written to
+  /// [PlayerProgress], so it cannot survive the guest leaving.
+  Future<bool> watchAdForTrial(NailCareInventoryItem item) async {
+    if (!canTrialItem(item)) {
+      return false;
+    }
+    trialPending = true;
+    notifyListeners();
+    bool earned = false;
+    try {
+      earned = await AdsService.instance.showRewarded(AdPlacement.toolTrial);
+    } finally {
+      trialPending = false;
+    }
+    if (!earned) {
+      notifyListeners();
+      return false;
+    }
+    _trialItemIds.add(item.id);
+    selectedItemId = item.id;
+    if (item.polishColor != 0) {
+      _activePolishColor = item.polishColor;
+      workspace.setPolishColor(item.polishColor);
+    }
+    GameAudio.instance.success();
+    notifyListeners();
+    return true;
+  }
+
   /// Takes the doubling offer off the HUD. Called wherever a stage ends or the
   /// flow resets, so an offer can never carry over into the next stage.
   void _clearAdBonusOffer() {
@@ -741,6 +925,7 @@ class NailCareController extends Component
     _clearAdBonusOffer();
     stageRewardClaimed = false;
     _washStarted = false;
+    _resetVisitScoring();
     polishByDigit.clear();
     _digitSim.clear();
     _activePolishColor = NailCareInventory.polishes.first.polishColor;
@@ -751,6 +936,11 @@ class NailCareController extends Component
   }
 
   void beginHandCleaning() {
+    // Stated rather than assumed: the patience budget is sized off
+    // careTarget, and this used to inherit whatever the last visit left
+    // behind — a manicure following a pedicure would have been given the
+    // four-stage budget.
+    careTarget = CareTarget.hand;
     stage = NailCareStage.handCleaning;
     digit = NailDigit.pinky;
     nailShape = NailShape.square;
@@ -767,6 +957,7 @@ class NailCareController extends Component
     _clearAdBonusOffer();
     stageRewardClaimed = false;
     _washStarted = false;
+    _resetVisitScoring();
     polishByDigit.clear();
     _digitSim.clear();
     _activePolishColor = NailCareInventory.polishes.first.polishColor;
@@ -791,6 +982,7 @@ class NailCareController extends Component
     _clearAdBonusOffer();
     stageRewardClaimed = false;
     _washStarted = false;
+    _resetVisitScoring();
     polishByDigit.clear();
     _digitSim.clear();
     _activePolishColor = NailCareInventory.polishes.first.polishColor;
@@ -853,6 +1045,13 @@ class NailCareController extends Component
       return;
     }
     toolHeldOverTarget = false;
+    // Letting a continuous hold slip before it finished is the one "mistake"
+    // this minigame actually has, so it is what breaks a combo. Dropping the
+    // tool after the hold completed is just putting it down, and must not
+    // count against the player.
+    if (_isContinuousNailHoldStage && nailCleanProgress < 1) {
+      _stageSlipped = true;
+    }
     workspace.hideSprayMist();
     GameAudio.instance.stopTool();
     notifyListeners();
@@ -1040,6 +1239,7 @@ class NailCareController extends Component
     rewardOpen = false;
     stageRewardClaimed = true;
     workspace.hideSprayMist();
+    _awardTip();
     // Hold the painted toes — re-running the clean strip here would wipe the
     // lacquer the guest just watched go on.
     workspace.showFootPolish(color: _activePolishColor, fill: 1);
@@ -1077,6 +1277,7 @@ class NailCareController extends Component
     rewardOpen = false;
     stageRewardClaimed = true;
     workspace.hideSprayMist();
+    _awardTip();
     workspace.showFinishedHand(polishByDigit, _allCutDigitsAreStiletto);
     onRequestHandReveal();
     notifyListeners();
@@ -1186,11 +1387,46 @@ class NailCareController extends Component
     notifyListeners();
   }
 
+  /// Whether the guest is currently waiting on the player. False before the
+  /// visit starts and once the work is done and on show, so patience never
+  /// drains against a reveal the player is meant to linger on.
+  bool get _guestIsWaiting {
+    switch (stage) {
+      case NailCareStage.inactive:
+      case NailCareStage.handReveal:
+      case NailCareStage.footReveal:
+        return false;
+      default:
+        return true;
+    }
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
     if (game.paused || rewardOpen) {
       return;
+    }
+
+    _syncStageClock();
+
+    // Patience and the stage clock run on wall time, not on tool time: the
+    // seconds spent hunting through a drawer are exactly the ones this is
+    // meant to measure. They keep running through the "tap NEXT" beats too,
+    // which is what stops a player parking on a finished stage forever.
+    if (_guestIsWaiting) {
+      patience = (patience - dt / _patienceBudget).clamp(0.0, 1.0);
+      _stageElapsed += dt;
+      _visitElapsed += dt;
+      // The holds below already notify every frame, but the idle beats between
+      // them do not — and the bar has to keep creeping during those or it
+      // looks stuck. Notify on a coarse step instead: 0.004 of the bar is well
+      // under a pixel, so this is invisible on screen and costs ~2 rebuilds a
+      // second rather than 60.
+      if ((_lastNotifiedPatience - patience).abs() >= 0.004) {
+        _lastNotifiedPatience = patience;
+        notifyListeners();
+      }
     }
 
     if ((stage == NailCareStage.handCleaning ||
@@ -1419,20 +1655,127 @@ class NailCareController extends Component
     notifyListeners();
   }
 
+  /// Opens a stage's payout, scaled by the combo the player has going.
+  ///
+  /// This is the one funnel every stage reward flows through, so the
+  /// multiplier is applied here rather than at each of the four call sites.
+  /// [amount] is always the face value from [GameConfig]; what lands in the
+  /// wallet is that times [comboMultiplier].
   void _openReward(int amount) {
-    coins += amount;
+    _scoreStageForCombo();
+    final paid = (amount * comboMultiplier).round();
+    coins += paid;
     pendingCoins = 0;
     rewardOpen = false;
     _clearAdBonusOffer();
-    adBonusOfferAmount = amount;
+    adBonusOfferAmount = paid;
     stageRewardClaimed = true;
-    coinBurstAmount = amount;
+    coinBurstAmount = paid;
     coinBurstGeneration += 1;
     confettiGeneration += 1;
     GameAudio.instance.stopTool();
     GameAudio.instance.success();
     GameAudio.instance.coin();
     notifyListeners();
+  }
+
+  /// Extends or breaks the combo based on how the stage that just finished
+  /// went. Called before the multiplier is read, so a stage played well pays
+  /// at the rate it just earned rather than the previous one.
+  void _scoreStageForCombo() {
+    final clean =
+        !_stageSlipped && _stageElapsed <= GameConfig.nailCareComboWindow;
+    if (clean) {
+      combo += 1;
+      if (combo > bestCombo) {
+        bestCombo = combo;
+      }
+    } else {
+      combo = 0;
+    }
+    _stageSlipped = false;
+    _stageElapsed = 0;
+  }
+
+  /// Restarts the stage clock whenever the flow moves to a different stage.
+  ///
+  /// Driven off [stage] changing rather than called from each of the ten
+  /// methods that start new work: those are exactly the kind of list that
+  /// grows a missing entry later, and a stage silently timed from the wrong
+  /// moment would be a very quiet bug.
+  void _syncStageClock() {
+    if (_timedStage == stage) {
+      return;
+    }
+    _timedStage = stage;
+    _stageElapsed = 0;
+    _stageSlipped = false;
+  }
+
+  /// Wipes everything that is scoped to one guest: the patience bar, the
+  /// combo run, the tip already paid, and any tool borrowed with an ad.
+  ///
+  /// Trials are cleared here and nowhere else, which is what guarantees a
+  /// borrowed tool cannot follow the player into the next visit.
+  void _resetVisitScoring() {
+    patience = 1;
+    _lastNotifiedPatience = 1;
+    // Sized here because this runs from every flow entry point, after
+    // careTarget and guestId are already set — so the budget always matches
+    // the work the player is about to be asked for.
+    _patienceBudget = GameConfig.nailCarePatienceBaseSeconds +
+        GameConfig.nailCarePatiencePerStageSeconds * _flowStageCount;
+    _visitElapsed = 0;
+    tipPaid = 0;
+    _tipAwarded = false;
+    combo = 0;
+    bestCombo = 0;
+    _stageElapsed = 0;
+    _stageSlipped = false;
+    _timedStage = null;
+    trialPending = false;
+    _trialItemIds.clear();
+  }
+
+  /// Pays the guest's tip and ends the combo run. Called once, from whichever
+  /// reveal closes the visit.
+  void _awardTip() {
+    // Both reveals call this, and a reveal is cheap to re-enter (the hand one
+    // is reached from the last finger, the foot one from NEXT). Paying twice
+    // for one guest would be a quiet way to break the economy, so the guard
+    // is on the payment rather than on the callers.
+    if (_tipAwarded) {
+      return;
+    }
+    _tipAwarded = true;
+    // Calibration readout. The right patience budget depends on how long a
+    // real player actually takes, which no amount of reading the hold
+    // durations will tell you — so print the real numbers once per visit and
+    // tune GameConfig from them. Debug builds only, and console only: the
+    // HUD is crowded enough already.
+    assert(() {
+      debugPrint(
+        '[patience] ${careTarget.name} visit: '
+        '${_visitElapsed.toStringAsFixed(1)}s elapsed across $_flowStageCount '
+        'stages, budget ${_patienceBudget.toStringAsFixed(0)}s, '
+        'bar left ${(patience * 100).round()}%, '
+        'best combo $bestCombo',
+      );
+      return true;
+    }());
+    // Round to a multiple of five so the number on screen reads like a tip
+    // rather than a rounding artefact of the patience bar.
+    final raw = patience * GameConfig.nailCareMaxTipCoins;
+    final tip = ((raw / 5).round() * 5).clamp(0, GameConfig.nailCareMaxTipCoins);
+    tipPaid = tip;
+    if (tip <= 0) {
+      return;
+    }
+    coins += tip;
+    coinBurstAmount = tip;
+    coinBurstGeneration += 1;
+    confettiGeneration += 1;
+    GameAudio.instance.coin();
   }
 
   int _activeNailFrame(double progress) {

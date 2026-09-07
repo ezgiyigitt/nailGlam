@@ -6,6 +6,7 @@ import 'package:nail_glam/controller/player_progress_controller.dart';
 import 'package:nail_glam/model/nail_care_tools.dart';
 import 'package:nail_glam/model/salon_catalog.dart';
 import 'gold_coin.dart';
+import 'tool_purchase_button.dart';
 
 /// Swipeable furniture showroom. One piece per page; locked items need coins.
 class ShopScreen extends StatefulWidget {
@@ -39,10 +40,69 @@ class _ShopScreenState extends State<ShopScreen> {
     NailCareToolId.nailClips,
   ];
 
+  // The locked-tool preview: pop-in art, "Unlock for <price>", the lock
+  // sprite, and the short hold on "Purchased" before it closes on its own.
+  // Mirrors the manicure HUD's tool-drawer preview state machine exactly (see
+  // NailCareOverlay's _openPreview / _unlockPreview) so a locked skin behaves
+  // the same whether it is opened from a manicure or from this menu.
+  NailCareInventoryItem? _previewItem;
+  bool _previewUnlocking = false;
+  bool _previewUnlockDone = false;
+
   @override
   void dispose() {
     _pages.dispose();
     super.dispose();
+  }
+
+  void _openToolPreview(NailCareInventoryItem item) {
+    setState(() {
+      _previewItem = item;
+      _previewUnlocking = false;
+      _previewUnlockDone = false;
+    });
+  }
+
+  void _closeToolPreview() {
+    setState(() {
+      _previewItem = null;
+      _previewUnlocking = false;
+      _previewUnlockDone = false;
+    });
+  }
+
+  Future<void> _unlockToolPreview() async {
+    final item = _previewItem;
+    if (item == null || _previewUnlocking) {
+      return;
+    }
+    setState(() {
+      _previewUnlocking = true;
+      _previewUnlockDone = false;
+    });
+    final bought = widget.progressController.buySkin(item);
+    if (!mounted) {
+      return;
+    }
+    if (!bought) {
+      // Not enough coins: drop back to the plain "Unlock for" state instead
+      // of hanging on the spinner-less unlocking state forever.
+      setState(() => _previewUnlocking = false);
+      return;
+    }
+    GameAudio.instance.coin();
+    setState(() => _previewUnlockDone = true);
+    // Hold on the "Purchased" state long enough to read, same pause the
+    // manicure drawer uses, then dismiss on its own — no extra tap needed.
+    await Future<void>.delayed(const Duration(milliseconds: 1800));
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _previewItem = null;
+      _previewUnlocking = false;
+      _previewUnlockDone = false;
+    });
   }
 
   @override
@@ -54,117 +114,146 @@ class _ShopScreenState extends State<ShopScreen> {
         builder: (BuildContext context, _) {
           final progress = widget.progressController;
           final item = ShopScreen.showroom[_index];
-          return SafeArea(
-            child: Column(
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 4, 16, 0),
-                  child: Row(
-                    children: <Widget>[
-                      IconButton(
-                        onPressed: () {
-                          GameAudio.instance.tap();
-                          Navigator.pop(context);
-                        },
-                        icon: const Icon(Icons.arrow_back_rounded),
-                      ),
-                      const Expanded(
-                        child: Text(
-                          'Salon Shop',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Baloo2',
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFFE84F8F),
+          final preview = _previewItem;
+          return Stack(
+            children: <Widget>[
+              SafeArea(
+                child: Column(
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 16, 0),
+                      child: Row(
+                        children: <Widget>[
+                          IconButton(
+                            onPressed: () {
+                              GameAudio.instance.tap();
+                              Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.arrow_back_rounded),
                           ),
-                        ),
+                          const Expanded(
+                            child: Text(
+                              'Salon Shop',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: 'Baloo2',
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFE84F8F),
+                              ),
+                            ),
+                          ),
+                          GoldBalanceChip(coins: progress.coins),
+                        ],
                       ),
-                      GoldBalanceChip(coins: progress.coins),
-                    ],
-                  ),
-                ),
-                _TabBar(
-                  index: _tab,
-                  onChanged: (int value) {
-                    GameAudio.instance.tap();
-                    setState(() => _tab = value);
-                  },
-                ),
-                Text(
-                  _tab == 0
-                      ? 'Swipe to browse. Locked pieces cost coins.'
-                      : 'Tap a tool to equip it. It goes straight on your HUD card.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontFamily: 'Baloo2',
-                    fontSize: 14,
-                    color: Color(0xFF8A4B63),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (_tab == 1)
-                  Expanded(
-                    child: ListView(
-                      key: const Key('shop-tools'),
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
-                      children: <Widget>[
-                        for (final NailCareToolId tool in _toolTabs)
-                          _ToolShelf(tool: tool, progressController: progress),
-                      ],
                     ),
-                  )
-                else ...<Widget>[
-                Expanded(
-                  child: PageView.builder(
-                    key: const Key('shop-showroom'),
-                    controller: _pages,
-                    scrollBehavior: const MaterialScrollBehavior().copyWith(
-                      dragDevices: const {
-                        PointerDeviceKind.touch,
-                        PointerDeviceKind.mouse,
-                        PointerDeviceKind.trackpad,
-                        PointerDeviceKind.stylus,
+                    _TabBar(
+                      index: _tab,
+                      onChanged: (int value) {
+                        GameAudio.instance.tap();
+                        setState(() => _tab = value);
                       },
                     ),
-                    itemCount: ShopScreen.showroom.length,
-                    onPageChanged: (int value) => setState(() => _index = value),
-                    itemBuilder: (BuildContext context, int index) {
-                      return _FurnitureCard(
-                        item: ShopScreen.showroom[index],
-                        progressController: progress,
-                        focused: index == _index,
-                      );
-                    },
-                  ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    for (var i = 0; i < ShopScreen.showroom.length; i++)
-                      Container(
-                        width: i == _index ? 16 : 8,
-                        height: 8,
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 3,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: i == _index
-                              ? const Color(0xFFE84F8F)
-                              : const Color(0x66E84F8F),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                    Text(
+                      _tab == 0
+                          ? 'Swipe to browse. Locked pieces cost coins.'
+                          : 'Tap a tool to equip it. It goes straight on your HUD card.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: 'Baloo2',
+                        fontSize: 14,
+                        color: Color(0xFF8A4B63),
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_tab == 1)
+                      Expanded(
+                        child: ListView(
+                          key: const Key('shop-tools'),
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                          children: <Widget>[
+                            for (final NailCareToolId tool in _toolTabs)
+                              _ToolShelf(
+                                tool: tool,
+                                progressController: progress,
+                                onPreview: _openToolPreview,
+                              ),
+                          ],
+                        ),
+                      )
+                    else ...<Widget>[
+                    Expanded(
+                      child: PageView.builder(
+                        key: const Key('shop-showroom'),
+                        controller: _pages,
+                        scrollBehavior: const MaterialScrollBehavior().copyWith(
+                          dragDevices: const {
+                            PointerDeviceKind.touch,
+                            PointerDeviceKind.mouse,
+                            PointerDeviceKind.trackpad,
+                            PointerDeviceKind.stylus,
+                          },
+                        ),
+                        itemCount: ShopScreen.showroom.length,
+                        onPageChanged: (int value) =>
+                            setState(() => _index = value),
+                        itemBuilder: (BuildContext context, int index) {
+                          return _FurnitureCard(
+                            item: ShopScreen.showroom[index],
+                            progressController: progress,
+                            focused: index == _index,
+                          );
+                        },
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        for (var i = 0; i < ShopScreen.showroom.length; i++)
+                          Container(
+                            width: i == _index ? 16 : 8,
+                            height: 8,
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 3,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: i == _index
+                                  ? const Color(0xFFE84F8F)
+                                  : const Color(0x66E84F8F),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+                      child: _BuyBar(item: item, progressController: progress),
+                    ),
+                    ],
                   ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-                  child: _BuyBar(item: item, progressController: progress),
+              ),
+              if (preview != null) ...<Widget>[
+                Positioned.fill(
+                  child: GestureDetector(
+                    key: const Key('shop-tool-preview-scrim'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _previewUnlocking ? null : _closeToolPreview,
+                    child: const ColoredBox(color: Color(0xB8000000)),
+                  ),
                 ),
-                ],
+                Center(
+                  child: _ToolUnlockSheet(
+                    item: preview,
+                    unlocking: _previewUnlocking,
+                    unlockDone: _previewUnlockDone,
+                    onClose: _closeToolPreview,
+                    onUnlock: _unlockToolPreview,
+                  ),
+                ),
               ],
-            ),
+            ],
           );
         },
       ),
@@ -220,10 +309,15 @@ class _TabBar extends StatelessWidget {
 
 /// One tool's shelf: every skin it has, with buy / equip in a single tap.
 class _ToolShelf extends StatelessWidget {
-  const _ToolShelf({required this.tool, required this.progressController});
+  const _ToolShelf({
+    required this.tool,
+    required this.progressController,
+    required this.onPreview,
+  });
 
   final NailCareToolId tool;
   final PlayerProgressController progressController;
+  final ValueChanged<NailCareInventoryItem> onPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -255,6 +349,7 @@ class _ToolShelf extends StatelessWidget {
               itemBuilder: (BuildContext context, int i) => _SkinCard(
                 item: skins[i],
                 progressController: progressController,
+                onPreview: onPreview,
               ),
             ),
           ),
@@ -265,10 +360,15 @@ class _ToolShelf extends StatelessWidget {
 }
 
 class _SkinCard extends StatelessWidget {
-  const _SkinCard({required this.item, required this.progressController});
+  const _SkinCard({
+    required this.item,
+    required this.progressController,
+    required this.onPreview,
+  });
 
   final NailCareInventoryItem item;
   final PlayerProgressController progressController;
+  final ValueChanged<NailCareInventoryItem> onPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -285,13 +385,13 @@ class _SkinCard extends StatelessWidget {
           progressController.equipSkin(item);
           return;
         }
-        if (progressController.buySkin(item)) {
-          GameAudio.instance.coin();
-        }
+        // Locked: open the same preview/unlock sheet the manicure HUD uses,
+        // instead of spending coins on a bare tap with no confirmation.
+        GameAudio.instance.tap();
+        onPreview(item);
       },
       child: Container(
         width: 104,
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
         decoration: BoxDecoration(
           color: const Color(0xFFFFF8FC),
           borderRadius: BorderRadius.circular(20),
@@ -300,68 +400,99 @@ class _SkinCard extends StatelessWidget {
             width: equipped ? 3 : 2,
           ),
         ),
-        child: Column(
+        // The lock now sits over the padding too, in a Stack one level up
+        // from before: centering it inside just the bottle's Expanded put it
+        // in the upper two-thirds of the card, never the middle of the whole
+        // card the way a real watermark should read.
+        child: Stack(
+          alignment: Alignment.center,
           children: <Widget>[
-            Expanded(
-              child: Opacity(
-                opacity: owned ? 1 : 0.45,
-                child: Image.asset(
-                  'assets/images/${item.iconPath}',
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              item.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'Baloo2',
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF5B3742),
-              ),
-            ),
-            const SizedBox(height: 2),
-            if (equipped)
-              const Text(
-                'Equipped',
-                style: TextStyle(
-                  fontFamily: 'Baloo2',
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFFE84F8F),
-                ),
-              )
-            else if (owned)
-              const Text(
-                'Tap to use',
-                style: TextStyle(
-                  fontFamily: 'Baloo2',
-                  fontSize: 12,
-                  color: Color(0xFF9A6A7A),
-                ),
-              )
-            else
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+              child: Column(
                 children: <Widget>[
-                  const GoldCoin(size: 13),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${item.unlockPrice}',
-                    style: TextStyle(
-                      fontFamily: 'Baloo2',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: canBuy
-                          ? const Color(0xFF5B3742)
-                          : const Color(0xFFB993A0),
+                  Expanded(
+                    child: Opacity(
+                      opacity: owned ? 1 : 0.45,
+                      child: Image.asset(
+                        'assets/images/${item.iconPath}',
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                      ),
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Baloo2',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF5B3742),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  if (equipped)
+                    const Text(
+                      'Equipped',
+                      style: TextStyle(
+                        fontFamily: 'Baloo2',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFE84F8F),
+                      ),
+                    )
+                  else if (owned)
+                    const Text(
+                      'Tap to use',
+                      style: TextStyle(
+                        fontFamily: 'Baloo2',
+                        fontSize: 12,
+                        color: Color(0xFF9A6A7A),
+                      ),
+                    )
+                  else
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        const GoldCoin(size: 13),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${item.unlockPrice}',
+                          style: TextStyle(
+                            fontFamily: 'Baloo2',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: canBuy
+                                ? const Color(0xFF5B3742)
+                                : const Color(0xFFB993A0),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
+              ),
+            ),
+            // The lock now fills the whole card — not an icon sitting on the
+            // card, but the card's entire face read as one big translucent
+            // lock — clipped to the same rounded rect so it never pokes past
+            // the border.
+            if (!owned)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(17),
+                    child: FittedBox(
+                      fit: BoxFit.cover,
+                      child: Icon(
+                        Icons.lock_rounded,
+                        color: const Color(0xFF5B3742).withOpacity(0.14),
+                      ),
+                    ),
+                  ),
+                ),
               ),
           ],
         ),
@@ -582,6 +713,86 @@ class _BuyBar extends StatelessWidget {
               }
             : null,
         child: child,
+      ),
+    );
+  }
+}
+
+/// The locked-tool confirmation card: art pops in, then a single
+/// [ToolPurchaseButton] carries the price, the lock sprite, and the
+/// "Purchased" hold-then-close. Deliberately the plain-card half of
+/// NailCareOverlay's `_InventoryPreviewSheet` — this screen only ever opens
+/// it for a locked item, never for an owned one to re-equip, so there is no
+/// "Use / Selected" branch to carry over.
+class _ToolUnlockSheet extends StatelessWidget {
+  const _ToolUnlockSheet({
+    required this.item,
+    required this.unlocking,
+    required this.unlockDone,
+    required this.onClose,
+    required this.onUnlock,
+  });
+
+  final NailCareInventoryItem item;
+  final bool unlocking;
+  final bool unlockDone;
+  final VoidCallback onClose;
+  final VoidCallback onUnlock;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 340),
+      child: Material(
+        color: const Color(0xFFFDF8F4),
+        elevation: 36,
+        shadowColor: const Color(0x88000000),
+        borderRadius: BorderRadius.circular(28),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                  key: const Key('shop-tool-preview-close'),
+                  onPressed: unlocking ? null : onClose,
+                  icon: const Icon(Icons.close_rounded),
+                  color: const Color(0xFF8A4B63),
+                  tooltip: 'Close preview',
+                ),
+              ),
+              PreviewArtPopIn(
+                child: Image.asset(
+                  'assets/images/${item.iconPath}',
+                  width: 138,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                item.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: 'Baloo2',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF8A4B63),
+                ),
+              ),
+              const SizedBox(height: 6),
+              ToolPurchaseButton(
+                price: item.unlockPrice,
+                label: unlockDone ? 'Purchased' : 'Unlock for',
+                unlocking: unlocking,
+                unlockDone: unlockDone,
+                onPressed: onUnlock,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
