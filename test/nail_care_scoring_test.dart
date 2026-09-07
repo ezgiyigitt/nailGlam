@@ -58,8 +58,8 @@ void main() {
   }
 
   /// Runs the hand wash to completion. [leadIn] is dead time burned before
-  /// the soap is picked up, which is what pushes a stage outside the combo
-  /// window without changing how the wash itself is played.
+  /// the soap is picked up, which is how an operation is pushed past its own
+  /// bar without changing how the wash itself is played.
   void washHand(NailGlamGame game, {double leadIn = 0}) {
     if (leadIn > 0) {
       game.nailCare.update(leadIn);
@@ -71,17 +71,17 @@ void main() {
   }
 
   group('patience', () {
-    testWidgets('drains while the guest waits and stops at the reveal', (
+    testWidgets('drains during an operation and stops at the reveal', (
       WidgetTester tester,
     ) async {
       final game = await loadGame(tester);
       game.debugOpenNailCare();
       expect(game.nailCare.patience, 1);
 
-      game.nailCare.update(15);
+      game.nailCare.update(6);
       expect(
         game.nailCare.patience,
-        closeTo(1 - 15 / game.nailCare.patienceBudgetSeconds, 1e-9),
+        closeTo(1 - 6 / GameConfig.nailCareStagePatienceSeconds, 1e-9),
       );
 
       // Nothing is owed once the work is done and on show.
@@ -91,93 +91,84 @@ void main() {
       expect(game.nailCare.patience, atReveal);
     });
 
-    testWidgets('sours the guest without ever going below the sheet', (
+    testWidgets('every operation gets its own full bar', (
+      WidgetTester tester,
+    ) async {
+      final game = await loadGame(tester);
+      game.debugOpenNailCare();
+
+      // Burn most of the wash's bar, then finish it.
+      game.nailCare.update(12);
+      expect(game.nailCare.patience, lessThan(0.5));
+      washHand(game);
+      expect(game.nailCare.stage, NailCareStage.handCleaningCompleted);
+
+      // Between operations the bar holds its value rather than refilling
+      // early, so the last one's result stays readable.
+      final betweenOperations = game.nailCare.patience;
+      game.nailCare.update(5);
+      expect(game.nailCare.patience, betweenOperations);
+      expect(game.nailCare.showsPatienceBar, isFalse);
+
+      // Moving into the next real operation refills it.
+      game.nailCare.advanceFromNext();
+      game.nailCare.stage = NailCareStage.nailSpraying;
+      game.nailCare.update(0.016);
+      expect(game.nailCare.patience, 1);
+      expect(game.nailCare.showsPatienceBar, isTrue);
+    });
+
+    testWidgets('the guest sours per missed operation, not per bar', (
       WidgetTester tester,
     ) async {
       final game = await loadGame(tester);
       game.debugOpenNailCare();
       // At the reveal the manicure itself reads as finished, so the only
-      // thing left moving the face is how long the guest was kept waiting.
+      // thing left moving the face is how the visit went.
       game.nailCare.stage = NailCareStage.handReveal;
 
-      // A briskly played visit ends above half, and keeps a delighted guest.
-      game.nailCare.patience = 1;
+      game.nailCare.stagesPaid = 6;
+      game.nailCare.stagesInTime = 6;
       expect(game.nailCare.emotionFrame, 4);
-      game.nailCare.patience = 0.55;
-      expect(game.nailCare.emotionFrame, 4);
-      // Below half the guest starts to show it.
-      game.nailCare.patience = 0.4;
+
+      game.nailCare.stagesInTime = 5;
       expect(game.nailCare.emotionFrame, 3);
-      game.nailCare.patience = 0.2;
+
+      game.nailCare.stagesInTime = 4;
       expect(game.nailCare.emotionFrame, 2);
-      game.nailCare.patience = 0;
+
+      game.nailCare.stagesInTime = 2;
       expect(game.nailCare.emotionFrame, 1);
     });
 
-    testWidgets('pays a tip scaled by whatever patience is left', (
+    testWidgets('the tip is the share of operations that beat their bar', (
       WidgetTester tester,
     ) async {
       final game = await loadGame(tester);
       game.debugOpenNailCare();
       final before = game.nailCare.coins;
 
-      game.nailCare.patience = 0.5;
+      game.nailCare.stagesPaid = 8;
+      game.nailCare.stagesInTime = 4;
       game.nailCare.beginHandReveal();
 
       expect(game.nailCare.tipPaid, GameConfig.nailCareMaxTipCoins ~/ 2);
       expect(game.nailCare.coins, before + game.nailCare.tipPaid);
     });
 
-    testWidgets('pays nothing once patience is gone', (
+    testWidgets('missing every operation pays no tip', (
       WidgetTester tester,
     ) async {
       final game = await loadGame(tester);
       game.debugOpenNailCare();
       final before = game.nailCare.coins;
 
-      game.nailCare.patience = 0;
+      game.nailCare.stagesPaid = 6;
+      game.nailCare.stagesInTime = 0;
       game.nailCare.beginHandReveal();
 
       expect(game.nailCare.tipPaid, 0);
       expect(game.nailCare.coins, before);
-    });
-  });
-
-  group('patience budget', () {
-    testWidgets('a pedicure gets far less patience than a manicure', (
-      WidgetTester tester,
-    ) async {
-      final game = await loadGame(tester);
-
-      game.nailCare.beginHandCleaning();
-      final handBudget = game.nailCare.patienceBudgetSeconds;
-
-      game.nailCare.beginFootCleaning();
-      final footBudget = game.nailCare.patienceBudgetSeconds;
-
-      // The whole point of budgeting by flow: a four-stage pedicure must not
-      // be handed the same clock as a sixteen-stage manicure, or it finishes
-      // on a full bar every time and the tip stops meaning anything.
-      expect(footBudget, lessThan(handBudget));
-      expect(
-        footBudget,
-        GameConfig.nailCarePatienceBaseSeconds +
-            GameConfig.nailCarePatiencePerStageSeconds * 4,
-      );
-    });
-
-    testWidgets('a manicure after a pedicure is re-sized for the hand', (
-      WidgetTester tester,
-    ) async {
-      final game = await loadGame(tester);
-
-      game.nailCare.beginFootCleaning();
-      final footBudget = game.nailCare.patienceBudgetSeconds;
-      // careTarget used to be left on foot here, which handed the following
-      // manicure the pedicure's much smaller budget.
-      game.nailCare.beginHandCleaning();
-
-      expect(game.nailCare.patienceBudgetSeconds, greaterThan(footBudget));
     });
   });
 
@@ -219,7 +210,7 @@ void main() {
   group('combo', () {
     test('multiplier steps at the configured tiers', () {
       // Pure lookup, so it needs no game: tier boundaries are the part worth
-      // pinning, since the payout of every stage hangs off them.
+      // pinning, since the payout of every operation hangs off them.
       expect(GameConfig.nailCareComboTier1, lessThan(GameConfig.nailCareComboTier2));
       expect(GameConfig.nailCareComboMultiplier1, greaterThan(1));
       expect(
@@ -228,7 +219,7 @@ void main() {
       );
     });
 
-    testWidgets('a prompt stage extends the combo and pays face value first', (
+    testWidgets('an operation that beats its bar extends the combo', (
       WidgetTester tester,
     ) async {
       final game = await loadGame(tester);
@@ -239,23 +230,30 @@ void main() {
 
       expect(game.nailCare.stage, NailCareStage.handCleaningCompleted);
       expect(game.nailCare.combo, 1);
+      expect(game.nailCare.stagesInTime, 1);
+      expect(game.nailCare.stagesPaid, 1);
       // Below the first tier, so the reward is untouched — a player who is
       // not on a run never earns less than the base economy.
       expect(game.nailCare.comboMultiplier, 1);
       expect(game.nailCare.coins, GameConfig.nailCareWashCoinReward);
     });
 
-    testWidgets('dawdling past the window breaks the combo', (
+    testWidgets('letting the bar run out breaks the combo', (
       WidgetTester tester,
     ) async {
       final game = await loadGame(tester);
       game.debugOpenNailCare();
       game.nailCare.combo = GameConfig.nailCareComboTier2;
 
-      washHand(game, leadIn: GameConfig.nailCareComboWindow + 1);
+      washHand(game, leadIn: GameConfig.nailCareStagePatienceSeconds + 1);
 
+      expect(game.nailCare.patience, 0);
       expect(game.nailCare.combo, 0);
       expect(game.nailCare.comboMultiplier, 1);
+      // The work still pays, and still counts — only the bonus was lost.
+      expect(game.nailCare.stagesPaid, 1);
+      expect(game.nailCare.stagesInTime, 0);
+      expect(game.nailCare.coins, GameConfig.nailCareWashCoinReward);
     });
 
     testWidgets('a stage already on a run pays the multiplied reward', (

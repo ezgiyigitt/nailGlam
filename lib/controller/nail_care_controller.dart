@@ -71,10 +71,12 @@ class NailCareController extends Component
 
   // --- Guest patience -------------------------------------------------
 
-  /// 1 = freshly seated, 0 = out of patience. Drains in [update] while there
-  /// is work on screen, and scales the tip paid at the reveal. It is a bonus
-  /// dial, not a fail timer: hitting 0 costs the tip and sours the guest's
-  /// face, and nothing else.
+  /// The current operation's bar: 1 when it begins, 0 once its time is up.
+  ///
+  /// Scoped to one operation, not the whole visit — it refills for every
+  /// spray, wipe, snip and coat. Running it out is never a fail: it costs the
+  /// combo and sours the guest's face, and the player still finishes the nail
+  /// and keeps the coins it pays.
   double patience = 1;
 
   /// The tip [_awardTip] actually paid, kept so the reveal can name it.
@@ -83,41 +85,22 @@ class NailCareController extends Component
   /// Guards against a re-entered reveal paying a second tip for one guest.
   bool _tipAwarded = false;
 
-  /// Seconds of patience this visit was given, sized from the flow's length
-  /// when the guest sat down. See [_flowStageCount].
-  double _patienceBudget = GameConfig.nailCarePatienceBaseSeconds;
+  /// Operations paid out this visit, and how many of them beat their bar.
+  /// Together they set the tip: all of them in time pays the full amount.
+  int stagesPaid = 0;
+  int stagesInTime = 0;
 
   /// Seconds the guest has actually been waiting this visit. Only used for
-  /// the calibration readout at the reveal.
+  /// the calibration readout.
   double _visitElapsed = 0;
 
-  /// How long this visit's patience bar is set to last, in seconds.
-  double get patienceBudgetSeconds => _patienceBudget;
-
-  /// Paid stages the current flow will run through, which is what the
-  /// patience budget is sized from.
-  ///
-  /// A pedicure is four: wash, wipe, cut, polish, each covering the whole
-  /// foot. A manicure is the wash plus one per finger for the spray/wipe
-  /// pair, plus two more for every finger this guest's kit actually cuts and
-  /// polishes — sixteen for a full set, fewer for a kit that skips fingers.
-  int get _flowStageCount {
-    if (careTarget == CareTarget.foot) {
-      return 4;
-    }
-    var stages = 1;
-    for (final NailDigit d in NailDigit.values) {
-      stages += 1;
-      if (careKit.allowsCutAndPolish(d)) {
-        stages += 2;
-      }
-    }
-    return stages;
-  }
+  /// How long a single operation's bar lasts, in seconds.
+  double get patienceBudgetSeconds => GameConfig.nailCareStagePatienceSeconds;
 
   // --- Combo ----------------------------------------------------------
 
-  /// Consecutive stages finished promptly and without the tool slipping.
+  /// Consecutive operations finished inside their bar without the tool
+  /// slipping.
   int combo = 0;
 
   /// Best [combo] this visit, so the reveal can praise a run the player has
@@ -126,6 +109,10 @@ class NailCareController extends Component
 
   /// Seconds the current stage has been open. Reset by [_syncStageClock].
   double _stageElapsed = 0;
+
+  /// [_stageElapsed] as it stood when the last operation paid out, for the
+  /// calibration log.
+  double _stageElapsedAtPayout = 0;
 
   /// Patience value at the last [notifyListeners] the drain itself triggered,
   /// so the bar can creep without repainting the HUD every frame.
@@ -642,27 +629,31 @@ class NailCareController extends Component
     return 0;
   }
 
-  /// Frames knocked off the face as patience drains.
+  /// Frames knocked off the face, driven by how the visit is going overall
+  /// rather than by the current bar alone.
   ///
-  /// The top band is the widest because a briskly played visit should end
-  /// with a little over half the bar left, and that run has earned a
-  /// delighted guest — the face is meant to punish dawdling, not ordinary
-  /// play. Below half it drops a frame per band.
+  /// Reading only the live bar would make the face bounce back to delighted
+  /// every time an operation started and its bar refilled, which reads as a
+  /// glitch rather than a mood. Missed operations accumulate instead, so the
+  /// guest sours as the visit goes badly and stays soured — with the live bar
+  /// able to add one more frame while it is genuinely running out, so
+  /// dawdling still shows in the moment.
   ///
   /// Note this only shows once the manicure itself has cheered the guest up:
   /// [_progressEmotionFrame] starts at 0, and the clamp in [emotionFrame]
   /// means early dawdling holds the face down rather than pushing it lower.
   int get _patienceMoodPenalty {
-    if (patience >= 0.50) {
-      return 0;
+    final missed = stagesPaid - stagesInTime;
+    var penalty = switch (missed) {
+      0 => 0,
+      1 => 1,
+      2 => 2,
+      _ => 3,
+    };
+    if (_isWorkingStage && patience <= 0.25) {
+      penalty += 1;
     }
-    if (patience >= 0.30) {
-      return 1;
-    }
-    if (patience >= 0.15) {
-      return 2;
-    }
-    return 3;
+    return penalty.clamp(0, 4);
   }
 
   bool canUse(NailCareToolId id) {
@@ -1390,16 +1381,47 @@ class NailCareController extends Component
   /// Whether the guest is currently waiting on the player. False before the
   /// visit starts and once the work is done and on show, so patience never
   /// drains against a reveal the player is meant to linger on.
-  bool get _guestIsWaiting {
+  /// True only during an operation the player is actually performing.
+  ///
+  /// The "…Completed" beats and the finger close-ups are excluded: the bar
+  /// belongs to a piece of work, so it should not tick down while the game is
+  /// waiting on a NEXT tap or playing a camera move the player cannot hurry.
+  bool get _isWorkingStage {
     switch (stage) {
+      case NailCareStage.handCleaning:
+      case NailCareStage.footCleaning:
+      case NailCareStage.nailSpraying:
+      case NailCareStage.nailBuffering:
+      case NailCareStage.nailCutting:
+      case NailCareStage.nailPolishing:
+      case NailCareStage.footNailSpraying:
+      case NailCareStage.footNailBuffering:
+      case NailCareStage.footNailCutting:
+      case NailCareStage.footNailPolishing:
+        return true;
       case NailCareStage.inactive:
+      case NailCareStage.handCleaningCompleted:
+      case NailCareStage.pinkyFingerFocus:
+      case NailCareStage.ringFingerFocus:
+      case NailCareStage.middleFingerFocus:
+      case NailCareStage.indexFingerFocus:
+      case NailCareStage.thumbFingerFocus:
+      case NailCareStage.nailBufferingCompleted:
+      case NailCareStage.nailCuttingCompleted:
+      case NailCareStage.nailPolishingCompleted:
       case NailCareStage.handReveal:
+      case NailCareStage.footCleaningCompleted:
+      case NailCareStage.footNailBufferingCompleted:
+      case NailCareStage.footNailCuttingCompleted:
+      case NailCareStage.footNailPolishingCompleted:
       case NailCareStage.footReveal:
         return false;
-      default:
-        return true;
     }
   }
+
+  /// Whether the HUD should draw the operation bar at all. Hidden between
+  /// operations so a frozen bar is never mistaken for a stalled one.
+  bool get showsPatienceBar => _isWorkingStage;
 
   @override
   void update(double dt) {
@@ -1410,12 +1432,12 @@ class NailCareController extends Component
 
     _syncStageClock();
 
-    // Patience and the stage clock run on wall time, not on tool time: the
-    // seconds spent hunting through a drawer are exactly the ones this is
-    // meant to measure. They keep running through the "tap NEXT" beats too,
-    // which is what stops a player parking on a finished stage forever.
-    if (_guestIsWaiting) {
-      patience = (patience - dt / _patienceBudget).clamp(0.0, 1.0);
+    // The bar runs on wall time, not on tool time: the seconds spent hunting
+    // through a drawer are exactly the ones it is meant to measure.
+    if (_isWorkingStage) {
+      patience = (patience -
+              dt / GameConfig.nailCareStagePatienceSeconds)
+          .clamp(0.0, 1.0);
       _stageElapsed += dt;
       _visitElapsed += dt;
       // The holds below already notify every frame, but the idle beats between
@@ -1677,10 +1699,10 @@ class NailCareController extends Component
     // off a couple of stages instead of only at the end of a whole visit.
     assert(() {
       debugPrint(
-        '[patience] stage paid $paid (base $amount ×$comboMultiplier) at '
-        '${_visitElapsed.toStringAsFixed(1)}s — bar '
-        '${(patience * 100).round()}% of ${_patienceBudget.toStringAsFixed(0)}s, '
-        'combo $combo',
+        '[patience] operation paid $paid (base $amount ×$comboMultiplier) '
+        'in ${_stageElapsedAtPayout.toStringAsFixed(1)}s of the '
+        '${GameConfig.nailCareStagePatienceSeconds.toStringAsFixed(0)}s bar '
+        '(${(patience * 100).round()}% left), combo $combo',
       );
       return true;
     }());
@@ -1690,12 +1712,20 @@ class NailCareController extends Component
     notifyListeners();
   }
 
-  /// Extends or breaks the combo based on how the stage that just finished
-  /// went. Called before the multiplier is read, so a stage played well pays
-  /// at the rate it just earned rather than the previous one.
+  /// Extends or breaks the combo based on how the operation that just
+  /// finished went. Called before the multiplier is read, so an operation
+  /// played well pays at the rate it just earned rather than the previous one.
+  ///
+  /// "In time" is simply whether the bar still had something left. That is
+  /// deliberately the same thing the player was watching — there is no second
+  /// hidden window that could disagree with what was on screen.
   void _scoreStageForCombo() {
-    final clean =
-        !_stageSlipped && _stageElapsed <= GameConfig.nailCareComboWindow;
+    final inTime = patience > 0;
+    final clean = !_stageSlipped && inTime;
+    stagesPaid += 1;
+    if (inTime) {
+      stagesInTime += 1;
+    }
     if (clean) {
       combo += 1;
       if (combo > bestCombo) {
@@ -1704,16 +1734,19 @@ class NailCareController extends Component
     } else {
       combo = 0;
     }
+    // Kept for the calibration log, which runs after this has zeroed the
+    // live counter.
+    _stageElapsedAtPayout = _stageElapsed;
     _stageSlipped = false;
     _stageElapsed = 0;
   }
 
-  /// Restarts the stage clock whenever the flow moves to a different stage.
+  /// Refills the bar whenever the flow moves into a different operation.
   ///
   /// Driven off [stage] changing rather than called from each of the ten
   /// methods that start new work: those are exactly the kind of list that
-  /// grows a missing entry later, and a stage silently timed from the wrong
-  /// moment would be a very quiet bug.
+  /// grows a missing entry later, and an operation silently timed from the
+  /// wrong moment would be a very quiet bug.
   void _syncStageClock() {
     if (_timedStage == stage) {
       return;
@@ -1721,6 +1754,14 @@ class NailCareController extends Component
     _timedStage = stage;
     _stageElapsed = 0;
     _stageSlipped = false;
+    if (_isWorkingStage) {
+      // A fresh operation gets a fresh bar. The in-between beats deliberately
+      // leave the old value alone: the bar is hidden there anyway, and
+      // resetting it early would hide how the last operation actually went.
+      patience = 1;
+      _lastNotifiedPatience = 1;
+      notifyListeners();
+    }
   }
 
   /// Wipes everything that is scoped to one guest: the patience bar, the
@@ -1732,11 +1773,9 @@ class NailCareController extends Component
     patience = 1;
     _lastNotifiedPatience = 1;
     // Sized here because this runs from every flow entry point, after
-    // careTarget and guestId are already set — so the budget always matches
-    // the work the player is about to be asked for.
-    _patienceBudget = GameConfig.nailCarePatienceBaseSeconds +
-        GameConfig.nailCarePatiencePerStageSeconds * _flowStageCount;
     _visitElapsed = 0;
+    stagesPaid = 0;
+    stagesInTime = 0;
     tipPaid = 0;
     _tipAwarded = false;
     combo = 0;
@@ -1759,24 +1798,26 @@ class NailCareController extends Component
       return;
     }
     _tipAwarded = true;
-    // Calibration readout. The right patience budget depends on how long a
-    // real player actually takes, which no amount of reading the hold
-    // durations will tell you — so print the real numbers once per visit and
-    // tune GameConfig from them. Debug builds only, and console only: the
+    // Calibration readout. The right bar length depends on how long a real
+    // player actually takes per operation, which no amount of reading the
+    // hold durations will tell you — so print the real numbers once per visit
+    // and tune GameConfig from them. Debug builds only, and console only: the
     // HUD is crowded enough already.
     assert(() {
       debugPrint(
         '[patience] ${careTarget.name} visit: '
-        '${_visitElapsed.toStringAsFixed(1)}s elapsed across $_flowStageCount '
-        'stages, budget ${_patienceBudget.toStringAsFixed(0)}s, '
-        'bar left ${(patience * 100).round()}%, '
+        '${_visitElapsed.toStringAsFixed(1)}s of work, '
+        '$stagesInTime/$stagesPaid operations beat the '
+        '${GameConfig.nailCareStagePatienceSeconds.toStringAsFixed(0)}s bar, '
         'best combo $bestCombo',
       );
       return true;
     }());
-    // Round to a multiple of five so the number on screen reads like a tip
-    // rather than a rounding artefact of the patience bar.
-    final raw = patience * GameConfig.nailCareMaxTipCoins;
+    // The tip is the share of operations that beat their bar — the per-visit
+    // score the individual bars add up to. Rounded to a multiple of five so
+    // the number reads like a tip rather than a rounding artefact.
+    final share = stagesPaid == 0 ? 0.0 : stagesInTime / stagesPaid;
+    final raw = share * GameConfig.nailCareMaxTipCoins;
     final tip = ((raw / 5).round() * 5).clamp(0, GameConfig.nailCareMaxTipCoins);
     tipPaid = tip;
     if (tip <= 0) {

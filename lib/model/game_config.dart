@@ -257,40 +257,30 @@ abstract final class GameConfig {
   // it does not end the manicure — a casual player who wanders off mid-visit
   // should still get to finish and keep every coin they actually earned.
 
-  // Patience is budgeted from the work in front of the guest, not from a
-  // flat clock. A manicure is the hand wash plus up to three paid stages per
-  // finger — sixteen in all — while a pedicure treats the whole foot at once
-  // and is only four. One fixed duration served neither: it left every
-  // pedicure finishing on a full bar (a free maximum tip) and squeezed every
-  // manicure to nothing however well it was played.
+  // Patience is measured per operation, not per visit. Every spray, wipe,
+  // snip and coat gets its own bar, refilled when that operation begins.
+  //
+  // A single visit-long bar could not work for both flows — a four-stage
+  // pedicure always finished on a full bar while a sixteen-stage manicure was
+  // squeezed to nothing — and it gave the player no idea which part of the
+  // work they were being slow at. A per-operation bar answers that directly:
+  // it is full when you start a nail and you can see it drain as you work it.
 
-  /// Fixed allowance every visit gets regardless of length, covering the
-  /// parts that do not scale with stage count: reading the first cue,
-  /// settling in, the opening wash.
-  static const double nailCarePatienceBaseSeconds = 15;
-
-  /// Allowance added per paid stage in the flow.
+  /// How long one operation may take before its bar runs out.
   ///
-  /// Tuned against a real run rather than the hold durations: measured from a
-  /// screenshot mid-manicure, four paid stages had taken about 79 seconds,
-  /// which is far slower than the ~5s per stage the timings alone suggest.
-  /// Eight seconds a stage leaves a brisk player comfortably in profit while
-  /// still letting the bar actually empty on a slow one — which at ten it
-  /// never did.
-  static const double nailCarePatiencePerStageSeconds = 8;
+  /// Generous against the actual holds — the longest is the ~3.4s hand wash,
+  /// the rest are near a second — because the real cost is picking the tool
+  /// up and dragging it onto the target, not the hold itself. A measured run
+  /// averaged about 20s per operation including hesitation, so this is
+  /// deliberately near that: missing it should mean genuinely dawdling.
+  static const double nailCareStagePatienceSeconds = 18;
 
-  /// Tip paid at a full patience bar, scaled linearly down to nothing as the
-  /// bar empties. Sits between one and two stage rewards so a brisk visit is
-  /// worth noticeably more than a slow one without dwarfing the base pay.
+  /// Tip paid for a visit where every operation beat its bar, scaled down by
+  /// the share that did not. Sits between one and two stage rewards, so a
+  /// sharp visit is worth noticeably more without dwarfing the base pay.
   static const int nailCareMaxTipCoins = 60;
 
   // --- Combo ----------------------------------------------------------
-
-  /// A stage completed within this many seconds of starting, without the tool
-  /// ever slipping off the target, extends the combo. Wide enough that the
-  /// slowest single stage (the ~3.4s hand wash) plus the drag to reach it
-  /// still lands comfortably inside it.
-  static const double nailCareComboWindow = 8;
 
   /// Clean stages needed before the payout multiplier steps up. Below the
   /// first threshold every reward pays face value, so an unhurried player

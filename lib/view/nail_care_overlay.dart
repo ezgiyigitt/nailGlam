@@ -347,9 +347,17 @@ class _NailCareHudState extends State<_NailCareHud> {
                           const SizedBox(height: 6),
                           _GuestNameChip(name: game.guest.name),
                           const SizedBox(height: 6),
-                          _PatienceBar(
-                            key: const Key('nail-care-patience'),
-                            patience: care.patience,
+                          // Reserved whether or not the bar is showing, so
+                          // the guest block keeps its height between
+                          // operations and nothing below it shifts.
+                          SizedBox(
+                            height: _PatienceBar.height,
+                            child: care.showsPatienceBar
+                                ? _PatienceBar(
+                                    key: const Key('nail-care-patience'),
+                                    patience: care.patience,
+                                  )
+                                : null,
                           ),
                         ],
                       ),
@@ -1641,7 +1649,8 @@ class _PatienceBar extends StatelessWidget {
 
   /// Tall enough to actually read as a bar against the guest's hand. At 7 the
   /// fill was a hairline even once it was drawn at all.
-  static const double _height = 10;
+  static const double height = 10;
+  static const double _height = height;
 
   /// Thresholds match the mood bands in `_patienceMoodPenalty`, so the bar
   /// changing colour and the guest's face dropping are the same event twice
