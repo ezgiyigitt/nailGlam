@@ -209,7 +209,15 @@ abstract final class AssetPaths {
   /// already works — a shared whole-hand mask/plate stretched the gradient
   /// and shine streak across all 5 nails, washing out whichever finger sat
   /// nearest the plate's horizontal center.
-  static const String finalHandStiletto = 'final_hand_stiletto.png';
+  ///
+  /// Points at `final_hand_stiletto_new.png`, not the original: that file had
+  /// a linear alpha ramp baked into it from y≈905 down, which erased the
+  /// palm and wrist and left the reveal showing five floating fingers. The
+  /// replacement is the same 1067×1474 canvas with the nails in the same
+  /// place (mean RGB difference under the nail masks is ~6/255), so the mask
+  /// and per-digit plates below did not need re-measuring — only the window
+  /// in [SpriteAtlas.finalHandStiletto], which now covers the whole hand.
+  static const String finalHandStiletto = 'final_hand_stiletto_new.png';
   static const String finalHandStilettoMask = 'final_hand_stiletto_mask.png';
   static const String finalHandStilettoNailPinky =
       'final_hand_stiletto_nail_pinky.png';

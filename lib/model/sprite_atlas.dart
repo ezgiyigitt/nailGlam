@@ -296,24 +296,29 @@ abstract final class SpriteAtlas {
     framePositions: <Vector2>[Vector2(288, 0)],
   );
 
-  /// Window into the 1067×1474 `final_hand_stiletto.png`, starting at the
-  /// opaque silhouette's origin (139,10) and 820 wide so
-  /// [GameConfig.workspaceHandWidth] scales it 1:1. Height is 1000 (not the
-  /// full canvas) so the displayed hand is ~980–1000px tall, matching
-  /// [finalHandDarkStiletto]'s scaled height — the previous 1360 window made
-  /// this hand ~39% taller on screen than every other reveal, pushing the
-  /// nail tips off the top of the visible play area. The art's wrist is
-  /// alpha-feathered just above this cut, so the window's bottom edge never
-  /// stamps a hard line on the table.
+  /// Window into the 1067×1474 `final_hand_stiletto_new.png` — the whole
+  /// opaque silhouette, nail tips at y=7 down to the wrist at the canvas's
+  /// last row.
+  ///
+  /// The previous window was 820×1000 at (139,10), which cut the hand off at
+  /// the knuckles. That was not a framing choice so much as a symptom: the
+  /// art file it pointed at had a fade baked in that had already destroyed
+  /// the palm, so shrinking the window only hid the seam. With the palm back
+  /// in the art the window has to cover it, and the height it costs is
+  /// handled where it belongs — [GuestCareKit.stilettoFinalHandDisplayHeight]
+  /// scales the sprite to fit the play area instead of the art being
+  /// amputated to fit the scale.
   ///
   /// `final_hand_stiletto_mask.png` shares this exact 1067×1474 canvas —
   /// [_paintLacquerCoat] samples the mask with the art's own src rect, so the
-  /// two must live in the same coordinate space.
+  /// two must live in the same coordinate space. The replacement art keeps
+  /// the nails within ~6/255 mean RGB of the old one, so those masks and the
+  /// per-digit plates below still line up unchanged.
   static final CharacterSheet finalHandStiletto = CharacterSheet(
-    frameSize: Vector2(820, 1000),
+    frameSize: Vector2(828, 1467),
     displayScale: 1,
     footPaddings: const <double>[0],
-    framePositions: <Vector2>[Vector2(139, 10)],
+    framePositions: <Vector2>[Vector2(137, 7)],
   );
 
   /// 1448×1086 dark-skin stiletto reveal. Window measured from the alpha

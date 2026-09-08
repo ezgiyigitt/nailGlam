@@ -142,6 +142,8 @@ class GuestCareKit {
     this.stilettoFinalHandSheet,
     this.stilettoFinalHandMaskAsset,
     this.stilettoFinalHandWristFadeEnd = 0.0,
+    this.stilettoFinalHandDisplayHeight,
+    this.stilettoFinalHandCenterY,
     this.shortNailAsset,
     this.shortNailSheet,
     this.polishMaskAsset,
@@ -217,6 +219,27 @@ class GuestCareKit {
   /// on the table. The old shared 0.34 fraction faded roughly the top third
   /// of the dark hand away — the "only half the hand shows" bug.
   final double stilettoFinalHandWristFadeEnd;
+
+  /// On-screen height budget for the stiletto reveal, in world units. Null
+  /// keeps the shared rule — scale by width so the sprite is
+  /// [GameConfig.workspaceHandWidth] across.
+  ///
+  /// Width alone cannot frame every reveal. A stiletto hand is mostly nail:
+  /// the light one is 828×1467 in its own art, so scaling it to the shared
+  /// 820 width makes it ~1450 tall and the nail tips run off the top of a
+  /// 1920 play area. Fitting by height instead keeps the whole hand on
+  /// screen, at the cost of a slightly narrower hand — which is the right
+  /// trade, and the one the earlier "just crop the palm off" fix got
+  /// backwards.
+  final double? stilettoFinalHandDisplayHeight;
+
+  /// Where the stiletto reveal's centre sits vertically. Null keeps
+  /// [GameConfig.workspaceHandCenterY].
+  ///
+  /// Paired with the height above: a taller sprite centred on the shared
+  /// line hangs lower than the square reveal's wrist, so this puts the wrist
+  /// back on roughly the same seat.
+  final double? stilettoFinalHandCenterY;
 
   /// Legacy single-digit short/mask (pinky) when [digitArt] is empty.
   final String? shortNailAsset;
@@ -347,6 +370,15 @@ abstract final class GuestCareCatalog {
     stilettoFinalHandAsset: AssetPaths.finalHandStiletto,
     stilettoFinalHandSheet: SpriteAtlas.finalHandStiletto,
     stilettoFinalHandMaskAsset: AssetPaths.finalHandStilettoMask,
+    // Fit by height: the full-hand art is 828×1467, so the shared
+    // width-820 rule would draw it ~1450 tall and push the nail tips off the
+    // top. 1150 puts the hand in roughly the same vertical band as the
+    // square reveal (which occupies ~1092), and the centre lands the wrist
+    // on the same seat rather than below it. Both numbers are eyeball-tuned
+    // — nudge them together (centre = wristLine − height / 2) if the hand
+    // sits high or low against the pad.
+    stilettoFinalHandDisplayHeight: 1150,
+    stilettoFinalHandCenterY: 691,
     shortNailAsset: AssetPaths.pinkyShortLight,
     shortNailSheet: SpriteAtlas.pinkyShortLight,
     polishMaskAsset: AssetPaths.pinkyNailMaskLight,

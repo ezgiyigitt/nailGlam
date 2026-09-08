@@ -729,7 +729,18 @@ class NailWorkspace extends PositionComponent with HasGameReference<FlameGame> {
     final stilettoAsset = _kit.stilettoFinalHandAsset;
     final stilettoSheet = _kit.stilettoFinalHandSheet;
     if (useStiletto && stilettoAsset != null && stilettoSheet != null) {
-      final scale = GameConfig.workspaceHandWidth / stilettoSheet.frameSize.x;
+      // Width is the shared rule, but a kit may cap the height instead: a
+      // full stiletto hand is mostly nail, so scaling it to the standard
+      // width alone runs the tips off the top of the play area. Taking the
+      // smaller of the two keeps the hand as wide as it can be *and* whole.
+      final displayHeight = _kit.stilettoFinalHandDisplayHeight;
+      final widthScale =
+          GameConfig.workspaceHandWidth / stilettoSheet.frameSize.x;
+      final scale = displayHeight == null
+          ? widthScale
+          : math.min(widthScale, displayHeight / stilettoSheet.frameSize.y);
+      _hand.position.y =
+          _kit.stilettoFinalHandCenterY ?? GameConfig.workspaceHandCenterY;
       final maskAsset = _kit.stilettoFinalHandMaskAsset;
       _hand.frames = _spritesFor(
         game.images.fromCache(stilettoAsset),
