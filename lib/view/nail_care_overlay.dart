@@ -383,6 +383,32 @@ class _NailCareHudState extends State<_NailCareHud> {
               ),
             ),
           ),
+        // Rides just under the patience bar so the reward and the thing that
+        // earned it are the same piece of screen. Kept outside the guest block
+        // on purpose: that block is a fixed-height Stack and clips, which would
+        // eat the flash exactly as it rose.
+        if (care.tipFlashGeneration > 0)
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  top: GameConfig.hudPad + _guestBlockHeight - 30,
+                ),
+                child: IgnorePointer(
+                  child: Center(
+                    child: _TipFlash(
+                      key: const Key('nail-care-tip-flash'),
+                      generation: care.tipFlashGeneration,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (care.showsStageCue)
           Positioned(
             left: 28,
@@ -1420,6 +1446,23 @@ class _InventoryPreviewSheet extends StatelessWidget {
                   decoration: TextDecoration.none,
                 ),
               ),
+              // The sheet is where the coins are actually spent, so it has to
+              // say what they buy. Without this the player is asked to commit
+              // 800 coins on the strength of a nicer bottle.
+              if (item.speedLabel.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 4),
+                Text(
+                  item.speedLabel,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: NailCareOverlay._displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF4E9C7E),
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
               const SizedBox(height: 6),
               if (!owned || unlocking || unlockDone) ...<Widget>[
                 ToolPurchaseButton(
@@ -1713,6 +1756,81 @@ class _PatienceBar extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// The "+TIP" that lifts off the patience bar when an operation beats it.
+///
+/// Deliberately carries no coin number. The tip is one per-visit payment
+/// worked out at the reveal, so any figure here would either be a guess or a
+/// promise the reveal might not keep — and a wrong number teaches the mechanic
+/// backwards. What the player needs in the moment is only the yes/no: that
+/// one counted.
+///
+/// Driven off a generation counter rather than a flag the controller has to
+/// clear: the key replays the tween on each bump, and the animation ending on
+/// zero opacity is what makes it go away. Nothing to reset, nothing to leak.
+class _TipFlash extends StatelessWidget {
+  const _TipFlash({required this.generation, super.key});
+
+  final int generation;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      key: ValueKey<int>(generation),
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOut,
+      builder: (BuildContext context, double t, Widget? child) {
+        // Rises from just below the bar to just above it, popping to full size
+        // over the first fifth and holding until it fades out over the last
+        // third — so it reads at a glance instead of only in a screenshot.
+        final double pop = (t / 0.2).clamp(0.0, 1.0);
+        final double fade = ((1 - t) / 0.35).clamp(0.0, 1.0);
+        return Opacity(
+          opacity: fade,
+          child: Transform.translate(
+            offset: Offset(0, 16 - 34 * t),
+            child: Transform.scale(scale: 0.7 + 0.3 * pop, child: child),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xF2FFF6EE),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              color: Color(0x33000000),
+              blurRadius: 8,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const GoldCoin(size: 16),
+            const SizedBox(width: 6),
+            const Text(
+              '+TIP',
+              style: TextStyle(
+                fontFamily: NailCareOverlay._displayFont,
+                fontSize: 14,
+                height: 1,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
+                color: Color(0xFF8A4B63),
+                decoration: TextDecoration.none,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

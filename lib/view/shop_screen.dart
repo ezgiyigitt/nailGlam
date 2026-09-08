@@ -340,7 +340,9 @@ class _ToolShelf extends StatelessWidget {
             ),
           ),
           SizedBox(
-            height: 132,
+            // 132 before the speed line was added under the name; grown by
+            // exactly that line so the bottle art keeps the room it had.
+            height: 147,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: skins.length,
@@ -432,6 +434,27 @@ class _SkinCard extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF5B3742),
                     ),
+                  ),
+                  // What the coins actually buy. Reserved at a fixed height
+                  // rather than shown only when there is a bonus: the free
+                  // starter has no label, and letting the row collapse made
+                  // its bottle taller than every other card on the shelf.
+                  SizedBox(
+                    height: 13,
+                    child: item.speedLabel.isEmpty
+                        ? null
+                        : Text(
+                            item.speedLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Baloo2',
+                              fontSize: 11,
+                              height: 1.1,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF5FA98A),
+                            ),
+                          ),
                   ),
                   const SizedBox(height: 2),
                   if (equipped)

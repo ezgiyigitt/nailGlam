@@ -48,6 +48,10 @@ class NailCareController extends Component
   /// Clip stage: each snip needs a fresh touch (leave + re-enter).
   bool _clipSnipReady = true;
 
+  /// Seconds the clips have been held on the nail since their last snip.
+  /// Only ever moves for clips that snip on their own; see [_autoSnipSeconds].
+  double _snipHeld = 0;
+
   bool inventoryOpen = false;
   String? selectedItemId;
 
@@ -68,6 +72,15 @@ class NailCareController extends Component
   int confettiGeneration = 0;
   int coinBurstGeneration = 0;
   int coinBurstAmount = 0;
+
+  /// Bumped once for every operation that beat its bar, so the workspace can
+  /// flash a "+TIP" the moment it is earned.
+  ///
+  /// The tip itself is only paid at the reveal, which meant the player was
+  /// being scored all visit with nothing on screen saying so until the very
+  /// end. This is the receipt for the individual operation: it does not move
+  /// any coins, it just tells the player the thing they just did counted.
+  int tipFlashGeneration = 0;
 
   // --- Guest patience -------------------------------------------------
 
@@ -351,6 +364,17 @@ class NailCareController extends Component
     }
     return null;
   }
+
+  /// How fast the equipped skin for [tool] works, 1 being the free starter.
+  ///
+  /// Read live off the equipped item rather than cached at stage start: the
+  /// player can change loadout between guests, and a stale multiplier is the
+  /// kind of bug that only shows up as "this soap feels wrong sometimes".
+  double _toolSpeed(NailCareToolId tool) => equippedItemFor(tool)?.speed ?? 1;
+
+  /// Seconds the equipped clips take between held snips, 0 for manual-only.
+  double get _autoSnipSeconds =>
+      equippedItemFor(NailCareToolId.nailClips)?.autoSnipSeconds ?? 0;
 
   /// Polish keeps its picker: colours are chosen per nail, not equipped once.
   bool get usesPolishPanel =>
@@ -906,6 +930,7 @@ class NailCareController extends Component
     _nailShapeLockedIn = false;
     toolHeldOverTarget = false;
     _clipSnipReady = true;
+    _snipHeld = 0;
     nailCleanProgress = 0;
     actionProgress = 0;
     inventoryOpen = false;
@@ -938,6 +963,7 @@ class NailCareController extends Component
     _nailShapeLockedIn = false;
     toolHeldOverTarget = false;
     _clipSnipReady = true;
+    _snipHeld = 0;
     nailCleanProgress = 0;
     actionProgress = 0;
     inventoryOpen = false;
@@ -963,6 +989,7 @@ class NailCareController extends Component
     digit = NailDigit.pinky;
     toolHeldOverTarget = false;
     _clipSnipReady = true;
+    _snipHeld = 0;
     nailCleanProgress = 0;
     actionProgress = 0;
     inventoryOpen = false;
@@ -994,6 +1021,7 @@ class NailCareController extends Component
         return;
       }
       _clipSnipReady = false;
+      _snipHeld = 0;
       toolHeldOverTarget = true;
       if (stage == NailCareStage.footNailCutting) {
         _applyFootClipSnip();
@@ -1025,6 +1053,7 @@ class NailCareController extends Component
   void onToolLeftTarget() {
     if (stage == NailCareStage.nailCutting || stage == NailCareStage.footNailCutting) {
       _clipSnipReady = true;
+      _snipHeld = 0;
       if (!toolHeldOverTarget) {
         return;
       }
@@ -1163,6 +1192,7 @@ class NailCareController extends Component
     stage = NailCareStage.footNailCutting;
     toolHeldOverTarget = false;
     _clipSnipReady = true;
+    _snipHeld = 0;
     nailCleanProgress = 0;
     actionProgress = 0;
     inventoryOpen = false;
@@ -1318,6 +1348,7 @@ class NailCareController extends Component
     stage = NailCareStage.nailCutting;
     toolHeldOverTarget = false;
     _clipSnipReady = true;
+    _snipHeld = 0;
     nailCleanProgress = 0;
     actionProgress = 0;
     inventoryOpen = false;
@@ -1457,7 +1488,13 @@ class NailCareController extends Component
       if (actionProgress >= 1) {
         return;
       }
-      final next = (actionProgress + dt / GameConfig.nailCareWashDuration)
+      // The soap the player bought is the whole difference here: a better
+      // soap fills the same wash in less wall time, which is time the
+      // patience bar does not get to drain.
+      final next = (actionProgress +
+              dt *
+                  _toolSpeed(NailCareToolId.handSoap) /
+                  GameConfig.nailCareWashDuration)
           .clamp(0.0, 1.0);
       if (stage == NailCareStage.footCleaning) {
         workspace.setFootWashProgress(next);
@@ -1473,6 +1510,31 @@ class NailCareController extends Component
         _openReward(GameConfig.nailCareWashCoinReward);
       } else {
         notifyListeners();
+      }
+      return;
+    }
+
+    // Clips that snip on their own keep going while the tool is held, so the
+    // upgrade removes the lift-and-re-drag between frames rather than the
+    // frames themselves. Free clips fall straight through with a 0 cooldown
+    // and behave exactly as they always did.
+    if (stage == NailCareStage.nailCutting ||
+        stage == NailCareStage.footNailCutting) {
+      final cooldown = _autoSnipSeconds;
+      if (!toolHeldOverTarget || cooldown <= 0) {
+        return;
+      }
+      _snipHeld += dt;
+      if (_snipHeld >= cooldown) {
+        _snipHeld = 0;
+        // Each of these can finish the stage, which clears
+        // [toolHeldOverTarget] and moves [stage] on — so the next tick falls
+        // out at the guard above rather than snipping into the next screen.
+        if (stage == NailCareStage.footNailCutting) {
+          _applyFootClipSnip();
+        } else {
+          _applyClipSnip();
+        }
       }
       return;
     }
@@ -1493,8 +1555,21 @@ class NailCareController extends Component
       NailCareStage.footNailPolishing => GameConfig.nailCarePolishHoldDuration,
       _ => GameConfig.nailCareBufferHoldDuration,
     };
+    // Each hold runs at the pace of the tool actually doing it. Polish is
+    // left at 1 on purpose: colours are picked per nail rather than equipped,
+    // so there is no single "the brush the player owns" to read a speed off.
+    final speed = switch (stage) {
+      NailCareStage.nailSpraying ||
+      NailCareStage.footNailSpraying =>
+        _toolSpeed(NailCareToolId.nailSpray),
+      NailCareStage.nailBuffering ||
+      NailCareStage.footNailBuffering =>
+        _toolSpeed(NailCareToolId.nailBuffer),
+      _ => 1.0,
+    };
     final previousFrame = isFootNail ? 0 : _activeNailFrame(nailCleanProgress);
-    nailCleanProgress = (nailCleanProgress + dt / duration).clamp(0.0, 1.0);
+    nailCleanProgress =
+        (nailCleanProgress + dt * speed / duration).clamp(0.0, 1.0);
     // Last wipe/spray cell shows before the timer hits 1. Treat that as
     // done so Next is not locked behind a second hold.
     if (isFootNail) {
@@ -1725,6 +1800,10 @@ class NailCareController extends Component
     stagesPaid += 1;
     if (inTime) {
       stagesInTime += 1;
+      // Fired here rather than at the reveal because this is the moment the
+      // player can still connect it to what they did. `_openReward` notifies
+      // right after, so the flash lands on the same frame as the payout.
+      tipFlashGeneration += 1;
     }
     if (clean) {
       combo += 1;

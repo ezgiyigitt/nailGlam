@@ -247,6 +247,7 @@ class NailCareInventoryItem {
     required this.unlocked,
     this.unlockPrice = 0,
     this.polishColor = 0,
+    this.speed = 1,
   });
 
   final String id;
@@ -256,6 +257,42 @@ class NailCareInventoryItem {
   final bool unlocked;
   final int unlockPrice;
   final int polishColor;
+
+  /// How much faster this skin works than the free starter. 1 = starter pace;
+  /// 1.5 finishes the same hold in two thirds of the time.
+  ///
+  /// This is the whole reason to buy up a drawer. Every skin used to be pure
+  /// art, so an 800-coin Crown Soap washed at exactly the speed of the soap
+  /// the player started with — the shop sold pictures, not tools. Speed is
+  /// the stat that pays off against the patience bar the player is already
+  /// watching: a faster tool means more operations beat their bar, which
+  /// means more combo and a bigger tip.
+  ///
+  /// Deliberately *only* speed. Paying more coins per wash would inflate the
+  /// economy that buys the tools, and a wider drop target would make the game
+  /// easier without the player being able to see why.
+  final double speed;
+
+  /// Seconds between automatic snips while the clips are held on the nail.
+  /// 0 means no auto-snip: the player must lift the tool and drag it back for
+  /// every frame, which is how the free clips work.
+  ///
+  /// Clip progress is sheet frames, not a timer, so the obvious "faster"
+  /// — take two frames per snip — was the wrong answer: it skips a frame of
+  /// the cutting animation, and the nail visibly jumps from long to short.
+  /// Every frame has to play.
+  ///
+  /// What a cut actually costs in wall time is not the snip, it is the three
+  /// lift-and-re-drag cycles around it. So that is what the upgrade buys: the
+  /// tool keeps snipping while it is held, at a rate that tightens with
+  /// [speed]. The animation is untouched, the frames all play, and the curve
+  /// is smooth instead of a single binary jump.
+  double get autoSnipSeconds => speed <= 1.001 ? 0 : 0.75 / speed;
+
+  /// Shop caption. Empty for the starter, so slot 0 does not advertise a
+  /// bonus it does not have.
+  String get speedLabel =>
+      speed <= 1.001 ? '' : '${speed.toStringAsFixed(2)}x speed';
 }
 
 /// Soap and buffer kits shown as 8-slot drawers. Slot 0 is owned.
@@ -275,6 +312,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolSoap2,
       unlocked: false,
       unlockPrice: 150,
+      speed: 1.15,
     ),
     NailCareInventoryItem(
       id: 'soap-2',
@@ -283,6 +321,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolSoap3,
       unlocked: false,
       unlockPrice: 250,
+      speed: 1.3,
     ),
     NailCareInventoryItem(
       id: 'soap-3',
@@ -291,6 +330,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolSoap4,
       unlocked: false,
       unlockPrice: 400,
+      speed: 1.45,
     ),
     NailCareInventoryItem(
       id: 'soap-4',
@@ -299,6 +339,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolSoap5,
       unlocked: false,
       unlockPrice: 600,
+      speed: 1.65,
     ),
     NailCareInventoryItem(
       id: 'soap-5',
@@ -307,6 +348,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolSoap6,
       unlocked: false,
       unlockPrice: 800,
+      speed: 1.9,
     ),
   ];
 
@@ -328,6 +370,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolSpray2,
       unlocked: false,
       unlockPrice: 100,
+      speed: 1.15,
     ),
     NailCareInventoryItem(
       id: 'spray-2',
@@ -336,6 +379,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolSpray3,
       unlocked: false,
       unlockPrice: 200,
+      speed: 1.3,
     ),
     NailCareInventoryItem(
       id: 'spray-3',
@@ -344,6 +388,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolSpray4,
       unlocked: false,
       unlockPrice: 350,
+      speed: 1.45,
     ),
     NailCareInventoryItem(
       id: 'spray-4',
@@ -352,6 +397,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolSpray5,
       unlocked: false,
       unlockPrice: 500,
+      speed: 1.65,
     ),
     NailCareInventoryItem(
       id: 'spray-5',
@@ -360,6 +406,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolSpray6,
       unlocked: false,
       unlockPrice: 750,
+      speed: 1.9,
     ),
   ];
 
@@ -368,32 +415,35 @@ abstract final class NailCareInventory {
       id: 'buffer-0',
       toolId: NailCareToolId.nailBuffer,
       name: 'Nail Wipe',
-      iconPath: AssetPaths.nailBuffer,
+      iconPath: AssetPaths.toolWipe1,
       unlocked: true,
     ),
     NailCareInventoryItem(
       id: 'buffer-1',
       toolId: NailCareToolId.nailBuffer,
       name: 'Soft Wipe',
-      iconPath: AssetPaths.toolWipe1,
+      iconPath: AssetPaths.toolWipe2,
       unlocked: false,
       unlockPrice: 150,
+      speed: 1.15,
     ),
     NailCareInventoryItem(
       id: 'buffer-2',
       toolId: NailCareToolId.nailBuffer,
       name: 'Ribbon Wipe',
-      iconPath: AssetPaths.toolWipe2,
+      iconPath: AssetPaths.toolWipe3,
       unlocked: false,
       unlockPrice: 250,
+      speed: 1.3,
     ),
     NailCareInventoryItem(
       id: 'buffer-3',
       toolId: NailCareToolId.nailBuffer,
       name: 'Quilt Wipe',
-      iconPath: AssetPaths.toolWipe3,
+      iconPath: AssetPaths.toolWipe4,
       unlocked: false,
       unlockPrice: 400,
+      speed: 1.45,
     ),
     NailCareInventoryItem(
       id: 'buffer-4',
@@ -402,6 +452,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolWipe5,
       unlocked: false,
       unlockPrice: 600,
+      speed: 1.65,
     ),
     NailCareInventoryItem(
       id: 'buffer-5',
@@ -410,6 +461,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolWipe6,
       unlocked: false,
       unlockPrice: 800,
+      speed: 1.9,
     ),
   ];
 
@@ -428,6 +480,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolClips2,
       unlocked: false,
       unlockPrice: 150,
+      speed: 1.15,
     ),
     NailCareInventoryItem(
       id: 'clips-2',
@@ -436,6 +489,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolClips3,
       unlocked: false,
       unlockPrice: 250,
+      speed: 1.3,
     ),
     NailCareInventoryItem(
       id: 'clips-3',
@@ -444,6 +498,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolClips4,
       unlocked: false,
       unlockPrice: 400,
+      speed: 1.45,
     ),
     NailCareInventoryItem(
       id: 'clips-4',
@@ -452,6 +507,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolClips5,
       unlocked: false,
       unlockPrice: 600,
+      speed: 1.65,
     ),
     NailCareInventoryItem(
       id: 'clips-5',
@@ -460,6 +516,7 @@ abstract final class NailCareInventory {
       iconPath: AssetPaths.toolClips6,
       unlocked: false,
       unlockPrice: 800,
+      speed: 1.9,
     ),
   ];
 
